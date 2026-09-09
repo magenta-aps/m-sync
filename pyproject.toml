@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
+# SPDX-License-Identifier: MPL-2.0
+
+[tool.poetry]
+name = "mSync"
+version = "0.0.0"   # version managed through conventional commits
+description = ""
+authors = [
+    "Magenta ApS <info@magenta.dk>"
+]
+license = "MPL-2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

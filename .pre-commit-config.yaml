@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
+# SPDX-License-Identifier: MPL-2.0
+
+repos:
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks.git
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        args: ["--fix", "lf"]
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        language: system
+      - id: ruff-format
+        language: system
+
+  - repo: https://github.com/DetachHead/basedpyright-pre-commit-mirror
+    rev: 1.31.4
+    hooks:
+      - id: basedpyright
+
+  - repo: https://github.com/fpgmaas/deptry.git
+    rev: 0.25.1
+    hooks:
+      - id: deptry
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.18.0
+    hooks:
+      - id: commitizen
+      - id: commitizen-branch
+        stages: [ pre-push ]

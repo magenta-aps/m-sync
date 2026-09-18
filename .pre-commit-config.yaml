@@ -19,7 +19,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.6
+    rev: v0.16.8
     hooks:
       - id: ruff
         args: [--fix]
@@ -28,9 +28,10 @@ repos:
         language: system
 
   - repo: https://github.com/DetachHead/basedpyright-pre-commit-mirror
-    rev: 1.31.4
+    rev: 1.40.1
     hooks:
       - id: basedpyright
+        language: system
 
   - repo: https://github.com/fpgmaas/deptry.git
     rev: 0.25.1
@@ -38,7 +39,7 @@ repos:
       - id: deptry
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.18.0
+    rev: v4.18.1
     hooks:
       - id: commitizen
       - id: commitizen-branch

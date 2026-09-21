@@ -3,14 +3,14 @@
 
 from typing import Protocol
 
-from .model import FreeBusy, GroupwareSystem, User
+from .model import FreeBusy, GroupwareSystemName, User
 
 
 class GroupwareConnector(Protocol):
     """An adapter that connects an external groupware system like Nextcloud to
     the core"""
 
-    def get_groupware_system(self) -> GroupwareSystem: ...
+    def get_groupware_system_name(self) -> GroupwareSystemName: ...
 
     async def update_user_list(self, users: list[User]) -> None: ...
 

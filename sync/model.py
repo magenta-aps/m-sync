@@ -8,19 +8,19 @@ from typing import ClassVar, NewType, Self
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 from pydantic.functional_validators import model_validator
 
-GroupwareSystem = NewType("GroupwareSystem", str)
+GroupwareSystemName = NewType("GroupwareSystemName", str)
 
 
-EXCHANGE_ONLINE = GroupwareSystem("exchange_online")
-NEXTCLOUD = GroupwareSystem("nextcloud")
-STALWART = GroupwareSystem("stalwart")
+EXCHANGE_ONLINE = GroupwareSystemName("exchange_online")
+NEXTCLOUD = GroupwareSystemName("nextcloud")
+STALWART = GroupwareSystemName("stalwart")
 
 
 class UpdateSource(BaseModel):
     """Records provenance information for an update."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    system: GroupwareSystem
+    system: GroupwareSystemName
     original_id: UUID4 | str = Field(
         description="""\
             some opaque ID that the original system can use to uniquely identify

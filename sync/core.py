@@ -18,14 +18,12 @@ class Core:
     def __init__(self) -> None:
         self.connectors = {}
 
-    def add_connectors(self, connectors: list[GroupwareConnector]) -> None:
-        new_connectors: dict[GroupwareSystemName, GroupwareConnector] = {}
+    def add_connectors(self, *connectors: GroupwareConnector) -> None:
         for connector in connectors:
             system = connector.get_groupware_system_name()
-            if system in new_connectors:
+            if system in self.connectors:
                 raise ValueError(f"duplicate connector for {system!r}")
-            new_connectors[system] = connector
-        self.connectors = new_connectors
+            self.connectors[system] = connector
 
     async def refresh_user_list(self) -> None:
         dummy_users = [

@@ -17,7 +17,7 @@ async def main() -> None:
     core = Core()
     system_alpha = DummyConnector(GroupwareSystemName("alpha"), core)
     system_beta = DummyConnector(GroupwareSystemName("beta"), core)
-    core.add_connectors([system_alpha, system_beta])
+    core.add_connectors(system_alpha, system_beta)
 
     async with asyncio.TaskGroup() as tg:
         _ = tg.create_task(system_alpha.run())

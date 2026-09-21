@@ -56,8 +56,8 @@ class DummyConnector:
             logger.info("received update from user", user=user, update=update)
             await self.core.send_calendar_update(user, update)
 
-    async def update_user_list(self, ldap_users: list[User]) -> None:
-        self.users = ldap_users
+    async def update_user_list(self, users: list[User]) -> None:
+        self.users = users
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None:
         logger.info("sent free-busy info to user", user=user, update=update)

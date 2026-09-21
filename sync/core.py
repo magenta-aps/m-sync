@@ -13,17 +13,17 @@ logger = structlog.stdlib.get_logger()
 
 
 class Core:
-    connectors: dict[GroupwareSystemName, GroupwareConnector]
+    _connectors: dict[GroupwareSystemName, GroupwareConnector]
 
     def __init__(self) -> None:
-        self.connectors = {}
+        self._connectors = {}
 
     def add_connectors(self, *connectors: GroupwareConnector) -> None:
         for connector in connectors:
             system = connector.get_groupware_system_name()
-            if system in self.connectors:
+            if system in self._connectors:
                 raise ValueError(f"duplicate connector for {system!r}")
-            self.connectors[system] = connector
+            self._connectors[system] = connector
 
     async def refresh_user_list(self) -> None:
         dummy_users = [
@@ -34,7 +34,7 @@ class Core:
         _ = await asyncio.gather(
             *(
                 connector.update_user_list(dummy_users)
-                for connector in self.connectors.values()
+                for connector in self._connectors.values()
             )
         )
 
@@ -44,7 +44,7 @@ class Core:
         logger.info("received update", update=update)
 
         # TODO: hardcoded because no LDAP dummy
-        target = self.connectors[GroupwareSystemName("beta")]
+        target = self._connectors[GroupwareSystemName("beta")]
 
         match update:
             case EventCreate(

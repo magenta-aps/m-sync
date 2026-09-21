@@ -110,4 +110,4 @@ class FreeBusy(UpdateBase):
 
 class User(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    upn: str
+    id: str

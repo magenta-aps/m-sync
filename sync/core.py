@@ -31,9 +31,9 @@ class Core:
         # TODO: actually connect to LDAP
 
         dummy_users = [
-            User(upn="foo@kommune.dk"),
-            User(upn="bar@kommune.dk"),
-            User(upn="baz@kommune.dk"),
+            User(id="foo@kommune.dk"),
+            User(id="bar@kommune.dk"),
+            User(id="baz@kommune.dk"),
         ]
         _ = await asyncio.gather(
             *(

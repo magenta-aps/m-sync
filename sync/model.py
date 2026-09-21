@@ -11,7 +11,7 @@ from pydantic.functional_validators import model_validator
 GroupwareSystem = NewType("GroupwareSystem", str)
 
 
-EXCHANGE_ONLINE = GroupwareSystem("exchange-online")
+EXCHANGE_ONLINE = GroupwareSystem("exchange_online")
 NEXTCLOUD = GroupwareSystem("nextcloud")
 STALWART = GroupwareSystem("stalwart")
 

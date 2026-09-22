@@ -34,6 +34,7 @@ class UpdateSource(BaseModel):
 
 
 class Interval(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     full_day: bool = False
     start: datetime = Field(
         description="""\

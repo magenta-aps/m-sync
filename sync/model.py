@@ -112,3 +112,9 @@ class FreeBusy(UpdateBase):
 class User(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     id: str
+
+
+class Group(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+    name: str
+    id: str

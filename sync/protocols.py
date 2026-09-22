@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+from collections.abc import AsyncIterator
 from typing import Protocol
 
-from .model import FreeBusy, GroupwareSystemName, User
+from .model import FreeBusy, Group, GroupwareSystemName, User
 
 
 class GroupwareConnector(Protocol):
@@ -15,3 +16,11 @@ class GroupwareConnector(Protocol):
     async def update_user_list(self, users: list[User]) -> None: ...
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None: ...
+
+
+class DirectoryServiceConnector(Protocol):
+    """An adapter for interfacing with directory services, like LDAP or Entra"""
+
+    async def list_groups(self) -> AsyncIterator[Group]: ...
+
+    async def list_group_members(self, group: Group) -> AsyncIterator[User]: ...

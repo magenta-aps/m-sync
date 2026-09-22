@@ -11,7 +11,7 @@ from pydantic.functional_validators import model_validator
 GroupwareSystemName = NewType("GroupwareSystemName", str)
 
 
-EXCHANGE_ONLINE = GroupwareSystemName("exchange_online")
+MICROSOFT_CLOUD = GroupwareSystemName("microsoft_cloud")
 NEXTCLOUD = GroupwareSystemName("nextcloud")
 STALWART = GroupwareSystemName("stalwart")
 

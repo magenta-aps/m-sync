@@ -23,6 +23,8 @@ typing-extensions = "^4.16.0"
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1"
 pytest-asyncio = "^1.4"
+python-dotenv = "^1.2.3"
+more-itertools = "^11.1.0"
 
 [tool.poetry.group.pre-commit.dependencies]
 pre-commit = "^4.6"

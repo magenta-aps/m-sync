@@ -16,7 +16,7 @@ from ..core import Core
 from ..model import (
     EventCreate,
     FreeBusy,
-    GroupwareSystem,
+    GroupwareSystemName,
     Interval,
     UpdateSource,
     User,
@@ -28,14 +28,14 @@ logger = structlog.stdlib.get_logger()
 class DummyConnector:
     users: list[User]
     core: Core
-    name: GroupwareSystem
+    name: GroupwareSystemName
 
-    def __init__(self, name: GroupwareSystem, core: Core) -> None:
+    def __init__(self, name: GroupwareSystemName, core: Core) -> None:
         self.users = []
         self.name = name
         self.core = core
 
-    def get_groupware_system(self) -> GroupwareSystem:
+    def get_groupware_system_name(self) -> GroupwareSystemName:
         return self.name
 
     async def run(self) -> None:
@@ -56,8 +56,8 @@ class DummyConnector:
             logger.info("received update from user", user=user, update=update)
             await self.core.send_calendar_update(user, update)
 
-    async def update_user_list(self, ldap_users: list[User]) -> None:
-        self.users = ldap_users
+    async def update_user_list(self, users: list[User]) -> None:
+        self.users = users
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None:
         logger.info("sent free-busy info to user", user=user, update=update)

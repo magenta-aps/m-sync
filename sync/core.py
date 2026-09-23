@@ -6,39 +6,35 @@ import asyncio
 
 import structlog
 
-from .model import EventCreate, FreeBusy, GroupwareSystem, UpdateBase, User
+from .model import EventCreate, FreeBusy, GroupwareSystemName, UpdateBase, User
 from .protocols import GroupwareConnector
 
 logger = structlog.stdlib.get_logger()
 
 
 class Core:
-    connectors: dict[GroupwareSystem, GroupwareConnector]
+    _connectors: dict[GroupwareSystemName, GroupwareConnector]
 
     def __init__(self) -> None:
-        self.connectors = {}
+        self._connectors = {}
 
-    def add_connectors(self, connectors: list[GroupwareConnector]) -> None:
-        new_connectors: dict[GroupwareSystem, GroupwareConnector] = {}
+    def add_connectors(self, *connectors: GroupwareConnector) -> None:
         for connector in connectors:
-            system = connector.get_groupware_system()
-            if system in new_connectors:
+            system = connector.get_groupware_system_name()
+            if system in self._connectors:
                 raise ValueError(f"duplicate connector for {system!r}")
-            new_connectors[system] = connector
-        self.connectors = new_connectors
+            self._connectors[system] = connector
 
-    async def refresh_user_list(self):
-        # TODO: actually connect to LDAP
-
+    async def refresh_user_list(self) -> None:
         dummy_users = [
-            User(upn="foo@kommune.dk"),
-            User(upn="bar@kommune.dk"),
-            User(upn="baz@kommune.dk"),
+            User(name="foo@kommune.dk", id="1"),
+            User(name="bar@kommune.dk", id="2"),
+            User(name="baz@kommune.dk", id="3"),
         ]
         _ = await asyncio.gather(
             *(
                 connector.update_user_list(dummy_users)
-                for connector in self.connectors.values()
+                for connector in self._connectors.values()
             )
         )
 
@@ -48,7 +44,7 @@ class Core:
         logger.info("received update", update=update)
 
         # TODO: hardcoded because no LDAP dummy
-        target = self.connectors[GroupwareSystem("beta")]
+        target = self._connectors[GroupwareSystemName("beta")]
 
         match update:
             case EventCreate(

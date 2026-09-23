@@ -7,7 +7,7 @@ import structlog
 
 from .connectors.dummy import DummyConnector
 from .core import Core
-from .model import GroupwareSystem
+from .model import GroupwareSystemName
 
 logger = structlog.stdlib.get_logger()
 
@@ -15,9 +15,9 @@ logger = structlog.stdlib.get_logger()
 async def main() -> None:
     # TODO: this is a hard-coded example
     core = Core()
-    system_alpha = DummyConnector(GroupwareSystem("alpha"), core)
-    system_beta = DummyConnector(GroupwareSystem("beta"), core)
-    core.add_connectors([system_alpha, system_beta])
+    system_alpha = DummyConnector(GroupwareSystemName("alpha"), core)
+    system_beta = DummyConnector(GroupwareSystemName("beta"), core)
+    core.add_connectors(system_alpha, system_beta)
 
     async with asyncio.TaskGroup() as tg:
         _ = tg.create_task(system_alpha.run())

@@ -1,17 +1,26 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+from collections.abc import AsyncIterator
 from typing import Protocol
 
-from .model import FreeBusy, GroupwareSystem, User
+from .model import FreeBusy, Group, GroupwareSystemName, User
 
 
 class GroupwareConnector(Protocol):
     """An adapter that connects an external groupware system like Nextcloud to
     the core"""
 
-    def get_groupware_system(self) -> GroupwareSystem: ...
+    def get_groupware_system_name(self) -> GroupwareSystemName: ...
 
-    async def update_user_list(self, ldap_users: list[User]) -> None: ...
+    async def update_user_list(self, users: list[User]) -> None: ...
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None: ...
+
+
+class DirectoryServiceConnector(Protocol):
+    """An adapter for interfacing with directory services, like LDAP or Entra"""
+
+    async def list_groups(self) -> AsyncIterator[Group]: ...
+
+    async def list_group_members(self, group: Group) -> AsyncIterator[User]: ...

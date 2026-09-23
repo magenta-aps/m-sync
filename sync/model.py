@@ -111,7 +111,18 @@ class FreeBusy(UpdateBase):
 
 class User(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    id: str
+    name: str = Field(
+        description="""\
+            A human-readable name for the user. This cannot be relied upon for
+            unique identification.
+        """
+    )
+    id: str = Field(
+        description="""\
+            A stable unique opaque persistent identifier that only the target
+            system understands.
+        """
+    )
 
 
 class Group(BaseModel):

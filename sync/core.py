@@ -27,9 +27,9 @@ class Core:
 
     async def refresh_user_list(self) -> None:
         dummy_users = [
-            User(id="foo@kommune.dk"),
-            User(id="bar@kommune.dk"),
-            User(id="baz@kommune.dk"),
+            User(name="foo@kommune.dk", id="1"),
+            User(name="bar@kommune.dk", id="2"),
+            User(name="baz@kommune.dk", id="3"),
         ]
         _ = await asyncio.gather(
             *(

@@ -38,6 +38,11 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+filterwarnings = [
+    # msgraph-sdk raises deprecation warnings on import of its generated
+    # request builders, see https://github.com/microsoftgraph/msgraph-sdk-python/issues/965
+    "ignore::DeprecationWarning:(msgraph|kiota_abstractions)\\..*",
+]
 
 [tool.deptry.package_module_name_map]
 msgraph-sdk = "msgraph"

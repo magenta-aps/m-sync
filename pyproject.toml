@@ -16,6 +16,8 @@ python = "^3.11"
 pydantic = "^2.13.5"
 structlog = "^26.1.0"
 pydantic-settings = "^2.15.0"
+msgraph-sdk = "^1.63.0"
+azure-identity = "^1.25.0"
 typing-extensions = "^4.16.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -34,3 +36,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.deptry.package_module_name_map]
+msgraph-sdk = "msgraph"
+azure-identity = "azure"

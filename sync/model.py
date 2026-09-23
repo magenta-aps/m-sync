@@ -3,10 +3,11 @@
 
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import ClassVar, NewType, Self
+from typing import TYPE_CHECKING, ClassVar, NewType, Self
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 from pydantic.functional_validators import model_validator
+from typing_extensions import override
 
 GroupwareSystemName = NewType("GroupwareSystemName", str)
 
@@ -128,4 +129,10 @@ class User(BaseModel):
 class Group(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     name: str
-    id: str
+    id: str | None = None
+
+    # XXX: workaround for https://github.com/microsoft/pyright/issues/6481
+    if TYPE_CHECKING:
+
+        @override
+        def __hash__(self) -> int: ...

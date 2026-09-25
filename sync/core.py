@@ -7,15 +7,17 @@ import asyncio
 import structlog
 
 from .model import EventCreate, FreeBusy, GroupwareSystemName, UpdateBase, User
-from .protocols import GroupwareConnector
+from .protocols import DirectoryServiceConnector, GroupwareConnector
 
 logger = structlog.stdlib.get_logger()
 
 
 class Core:
+    _directory_service: DirectoryServiceConnector
     _connectors: dict[GroupwareSystemName, GroupwareConnector]
 
-    def __init__(self) -> None:
+    def __init__(self, directory_service: DirectoryServiceConnector) -> None:
+        self._directory_service = directory_service
         self._connectors = {}
 
     def add_connectors(self, *connectors: GroupwareConnector) -> None:

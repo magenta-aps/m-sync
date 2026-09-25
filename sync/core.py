@@ -20,7 +20,7 @@ class Core:
         self._directory_service = directory_service
         self._connectors = {}
 
-    def add_connectors(self, *connectors: GroupwareConnector) -> None:
+    def add_groupware(self, *connectors: GroupwareConnector) -> None:
         for connector in connectors:
             system = connector.get_groupware_system_name()
             if system in self._connectors:

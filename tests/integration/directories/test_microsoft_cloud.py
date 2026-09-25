@@ -5,16 +5,16 @@ import pytest
 from more_itertools import one
 
 from sync.config import Settings
-from sync.connectors.microsoft_cloud import MicrosoftCloudConnector
+from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 from sync.microsoft_cloud import make_graph_client
 from sync.model import Group
 
 
 @pytest.fixture
-def connector(
+def directory(
     settings: Settings,
-) -> MicrosoftCloudConnector:
-    return MicrosoftCloudConnector(make_graph_client(settings))
+) -> MicrosoftCloudDirectory:
+    return MicrosoftCloudDirectory(make_graph_client(settings))
 
 
 async def test_auth(settings: Settings) -> None:
@@ -23,8 +23,8 @@ async def test_auth(settings: Settings) -> None:
     _ = make_graph_client(settings)
 
 
-async def test_list_groups(connector: MicrosoftCloudConnector) -> None:
-    groups = {group async for group in connector.list_groups()}
+async def test_list_groups(directory: MicrosoftCloudDirectory) -> None:
+    groups = {group async for group in directory.list_groups()}
 
     assert any(
         group.name.lower() == "msync-microsoft_cloud-nextcloud" for group in groups
@@ -34,11 +34,11 @@ async def test_list_groups(connector: MicrosoftCloudConnector) -> None:
     )
 
 
-async def test_list_users(connector: MicrosoftCloudConnector) -> None:
+async def test_list_users(directory: MicrosoftCloudDirectory) -> None:
     group1 = Group(name="msync-microsoft_cloud-nextcloud")
-    user1 = one([user async for user in connector.list_group_members(group1)])
+    user1 = one([user async for user in directory.list_group_members(group1)])
     assert user1.name == "laurits-testensen@magentakommune.dk"
 
     group2 = Group(name="msync-nextcloud-microsoft_cloud")
-    user2 = one([user async for user in connector.list_group_members(group2)])
+    user2 = one([user async for user in directory.list_group_members(group2)])
     assert user2.name == "anne-testensen@magentakommune.dk"

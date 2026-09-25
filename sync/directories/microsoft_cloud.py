@@ -11,8 +11,6 @@ from ..model import Group, User
 
 logger = structlog.stdlib.get_logger()
 
-# TODO: what scope should we actually use??
-_DEFAULT_SCOPE = "https://graph.microsoft.com/.default"
 
 T = TypeVar("T")
 
@@ -32,7 +30,7 @@ class _PaginatedRequestBuilder(Protocol[T]):
     def with_url(self, raw_url: str) -> Self: ...
 
 
-class MicrosoftCloudConnector:
+class MicrosoftCloudDirectory:
     _client: GraphServiceClient
 
     def __init__(self, client: GraphServiceClient) -> None:

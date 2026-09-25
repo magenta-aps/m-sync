@@ -25,7 +25,7 @@ from ..model import (
 logger = structlog.stdlib.get_logger()
 
 
-class DummyConnector:
+class DummyGroupware:
     users: list[User]
     core: Core
     name: GroupwareSystemName

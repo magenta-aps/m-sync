@@ -6,12 +6,10 @@ import asyncio
 import structlog
 
 from sync.config import DirectoryServiceName, Settings, get_settings
-from sync.connectors.microsoft_cloud import (
-    MicrosoftCloudConnector,
-)
+from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 
-from .connectors.dummy import DummyConnector
 from .core import Core
+from .groupware.dummy import DummyGroupware
 from .microsoft_cloud import make_graph_client
 from .model import GroupwareSystemName
 from .protocols import DirectoryServiceConnector
@@ -23,9 +21,9 @@ async def main() -> None:
     settings = get_settings()
     directory_service = _make_dir_service_connector(settings)
     core = Core(directory_service)
-    system_alpha = DummyConnector(GroupwareSystemName("alpha"), core)
-    system_beta = DummyConnector(GroupwareSystemName("beta"), core)
-    core.add_connectors(system_alpha, system_beta)
+    system_alpha = DummyGroupware(GroupwareSystemName("alpha"), core)
+    system_beta = DummyGroupware(GroupwareSystemName("beta"), core)
+    core.add_groupware(system_alpha, system_beta)
 
     async with asyncio.TaskGroup() as tg:
         _ = tg.create_task(system_alpha.run())
@@ -38,7 +36,7 @@ def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector
         case DirectoryServiceName.DUMMY:
             raise NotImplementedError
         case DirectoryServiceName.MICROSOFT_CLOUD:
-            return MicrosoftCloudConnector(make_graph_client(settings))
+            return MicrosoftCloudDirectory(make_graph_client(settings))
 
 
 async def _refresh_users_loop(core: Core) -> None:

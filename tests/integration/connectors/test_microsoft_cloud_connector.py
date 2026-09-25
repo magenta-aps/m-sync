@@ -6,6 +6,7 @@ from more_itertools import one
 
 from sync.config import Settings
 from sync.connectors.microsoft_cloud import MicrosoftCloudConnector
+from sync.microsoft_cloud import make_graph_client
 from sync.model import Group
 
 
@@ -13,12 +14,13 @@ from sync.model import Group
 def connector(
     settings: Settings,
 ) -> MicrosoftCloudConnector:
-    return MicrosoftCloudConnector(settings)
+    return MicrosoftCloudConnector(make_graph_client(settings))
 
 
-@pytest.mark.usefixtures("connector")
-async def test_auth() -> None:
-    """This test just uses the fixture, which triggers auth."""
+async def test_auth(settings: Settings) -> None:
+    """This just checks that a client is created succesfully."""
+
+    _ = make_graph_client(settings)
 
 
 async def test_list_groups(connector: MicrosoftCloudConnector) -> None:

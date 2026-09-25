@@ -6,12 +6,15 @@ import asyncio
 import structlog
 
 from sync.config import DirectoryServiceName, Settings, get_settings
-from sync.connectors.microsoft_cloud import MicrosoftCloudConnector
-from sync.protocols import DirectoryServiceConnector
+from sync.connectors.microsoft_cloud import (
+    MicrosoftCloudConnector,
+)
 
 from .connectors.dummy import DummyConnector
 from .core import Core
+from .microsoft_cloud import make_graph_client
 from .model import GroupwareSystemName
+from .protocols import DirectoryServiceConnector
 
 logger = structlog.stdlib.get_logger()
 
@@ -35,7 +38,7 @@ def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector
         case DirectoryServiceName.DUMMY:
             raise NotImplementedError
         case DirectoryServiceName.MICROSOFT_CLOUD:
-            return MicrosoftCloudConnector(settings)
+            return MicrosoftCloudConnector(make_graph_client(settings))
 
 
 async def _refresh_users_loop(core: Core) -> None:

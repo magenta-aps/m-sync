@@ -5,16 +5,12 @@ from collections.abc import AsyncIterator
 from typing import Protocol, Self, TypeVar
 
 import structlog
-from azure.identity.aio import ClientSecretCredential
 from msgraph.graph_service_client import GraphServiceClient
 
-from ..config import Settings
 from ..model import Group, User
 
 logger = structlog.stdlib.get_logger()
 
-# TODO: what scope should we actually use??
-_DEFAULT_SCOPE = "https://graph.microsoft.com/.default"
 
 T = TypeVar("T")
 
@@ -34,17 +30,11 @@ class _PaginatedRequestBuilder(Protocol[T]):
     def with_url(self, raw_url: str) -> Self: ...
 
 
-class MicrosoftCloudConnector:
+class MicrosoftCloudDirectory:
     _client: GraphServiceClient
 
-    def __init__(self, settings: Settings) -> None:
-        assert settings.microsoft_cloud is not None
-        credentials = ClientSecretCredential(
-            tenant_id=settings.microsoft_cloud.tenant_id,
-            client_id=settings.microsoft_cloud.client_id,
-            client_secret=settings.microsoft_cloud.client_secret.get_secret_value(),
-        )
-        self._client = GraphServiceClient(credentials)
+    def __init__(self, client: GraphServiceClient) -> None:
+        self._client = client
 
     async def list_groups(self) -> AsyncIterator[Group]:
         groups = (

@@ -25,7 +25,7 @@ from ..model import (
 logger = structlog.stdlib.get_logger()
 
 
-class DummyConnector:
+class DummyGroupware:
     users: list[User]
     core: Core
     name: GroupwareSystemName
@@ -54,7 +54,7 @@ class DummyConnector:
                 interval=Interval(start=now, end=now + timedelta(seconds=1)),
             )
             logger.info("received update from user", user=user, update=update)
-            await self.core.send_calendar_update(user, update)
+            await self.core.send_calendar_updates(user, [update])
 
     async def update_user_list(self, users: list[User]) -> None:
         self.users = users

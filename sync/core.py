@@ -20,7 +20,7 @@ class Core:
         self._directory_service = directory_service
         self._connectors = {}
 
-    def add_connectors(self, *connectors: GroupwareConnector) -> None:
+    def add_groupware(self, *connectors: GroupwareConnector) -> None:
         for connector in connectors:
             system = connector.get_groupware_system_name()
             if system in self._connectors:
@@ -40,31 +40,34 @@ class Core:
             )
         )
 
-    async def send_calendar_update(self, user: User, update: UpdateBase) -> None:
+    async def send_calendar_updates(
+        self, user: User, updates: list[UpdateBase]
+    ) -> None:
         """Called by a connector whenever their calendar changes"""
 
-        logger.info("received update", update=update)
+        logger.info("received updates", updates=updates)
 
         # TODO: hardcoded because no LDAP dummy
         target = self._connectors[GroupwareSystemName("beta")]
 
-        match update:
-            case EventCreate(
-                source=source,
-                timestamp=timestamp,
-                interval=interval,
-                free_busy_status=free_busy,
-            ):
-                await target.send_free_busy(
-                    user,
-                    FreeBusy(
-                        source=source,
-                        timestamp=timestamp,
-                        interval=interval,
-                        free_busy_status=free_busy,
-                    ),
-                )
-            case _:
-                raise NotImplementedError("TODO")
+        for update in updates:
+            match update:
+                case EventCreate(
+                    source=source,
+                    timestamp=timestamp,
+                    interval=interval,
+                    free_busy_status=free_busy,
+                ):
+                    await target.send_free_busy(
+                        user,
+                        FreeBusy(
+                            source=source,
+                            timestamp=timestamp,
+                            interval=interval,
+                            free_busy_status=free_busy,
+                        ),
+                    )
+                case _:
+                    raise NotImplementedError("TODO")
 
         # TODO: actually implement

@@ -35,6 +35,9 @@ class DummyGroupware:
         self.name = name
         self.core = core
 
+    def get_webhooks_mount(self) -> None:
+        return None
+
     def get_groupware_system_name(self) -> GroupwareSystemName:
         return self.name
 

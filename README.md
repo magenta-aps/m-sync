@@ -9,6 +9,15 @@ of whichever systems you have running in your test setup, such as Microsoft Clou
 and Nextcloud. See [.env.example](./.env.example) for a list of the available configuration
 flags.
 
+Then run:
+
+```bash
+docker compose up --build -d
+
+# run all tests, you can also specify a path to run a subset of tests
+docker compose run -it --rm sync pytest .
+```
+
 You also need the following to exist in external systems:
 - Microsoft Entra
   - An app registration (that's the source of the client ID), should have the following

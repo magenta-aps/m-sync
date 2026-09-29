@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
+# SPDX-License-Identifier: MPL-2.0
+
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+DATABASE_URL = "postgresql+psycopg://msync:msync@postgres:5432/msync"
+
+
+def make_database_engine() -> AsyncEngine:
+    return create_async_engine(DATABASE_URL, connect_args={"connect_timeout": 5})
+
+
+async def check_database(engine: AsyncEngine) -> None:
+    """Verify database connectivity, raising an exception if it is down."""
+    async with engine.connect() as conn:
+        _ = await conn.execute(text("SELECT 1"))

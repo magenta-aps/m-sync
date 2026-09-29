@@ -21,12 +21,15 @@ azure-identity = "^1.25.0"
 typing-extensions = "^4.16.0"
 starlette = "^1.7.0"
 uvicorn = "^0.38.0"
+sqlalchemy = { version = "^2.0.44", extras = ["asyncio"] }
+psycopg = { version = "^3.2", extras = ["binary"] }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1"
 pytest-asyncio = "^1.4"
 python-dotenv = "^1.2.3"
 more-itertools = "^11.1.0"
+httpx2 = "^2.0"
 
 [tool.poetry.group.pre-commit.dependencies]
 pre-commit = "^4.6"
@@ -49,3 +52,13 @@ filterwarnings = [
 [tool.deptry.package_module_name_map]
 msgraph-sdk = "msgraph"
 azure-identity = "azure"
+
+[tool.deptry.per_rule_ignores]
+# used as the database driver through SQLAlchemy's connection URL
+DEP002 = ["psycopg"]
+
+[tool.basedpyright]
+# pin the import-resolution environment to the in-project poetry venv so the
+# pre-commit hook works regardless of which interpreter launches basedpyright
+venvPath = "."
+venv = ".venv"

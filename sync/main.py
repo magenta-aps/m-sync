@@ -18,8 +18,8 @@ from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 from .core import Core
 from .database import check_database, make_database_engine
 from .groupware.dummy import DummyGroupware
-from .microsoft_cloud import make_graph_client
 from .model import AppState, GroupwareSystemName, Request
+from .ms_graph import make_graph_client
 from .protocols import DirectoryServiceConnector, GroupwareConnector
 
 logger = structlog.stdlib.get_logger()

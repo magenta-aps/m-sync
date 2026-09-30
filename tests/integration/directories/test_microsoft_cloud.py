@@ -6,8 +6,8 @@ from more_itertools import one
 
 from sync.config import Settings
 from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
-from sync.microsoft_cloud import make_graph_client
 from sync.model import Group
+from sync.ms_graph import make_graph_client
 
 
 @pytest.fixture

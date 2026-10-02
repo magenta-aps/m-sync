@@ -5,7 +5,7 @@ import pytest
 from more_itertools import one
 
 from sync.config import Settings
-from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
+from sync.directories.microsoft_cloud import GROUP_PREFIX, MicrosoftCloudDirectory
 from sync.model import Group
 from sync.ms_graph import make_graph_client
 
@@ -26,6 +26,7 @@ async def test_auth(settings: Settings) -> None:
 async def test_list_groups(directory: MicrosoftCloudDirectory) -> None:
     groups = {group async for group in directory.list_groups()}
 
+    assert all(group.name.lower().startswith(GROUP_PREFIX) for group in groups), groups
     assert any(
         group.name.lower() == "msync-microsoft_cloud-nextcloud" for group in groups
     )

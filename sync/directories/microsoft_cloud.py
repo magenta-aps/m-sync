@@ -4,12 +4,19 @@
 from collections.abc import AsyncIterator
 
 import structlog
+from kiota_abstractions.base_request_configuration import RequestConfiguration
+from msgraph.generated.groups.groups_request_builder import (  # pyright: ignore[reportMissingTypeStubs]
+    GroupsRequestBuilder,
+)
 from msgraph.graph_service_client import GraphServiceClient
 
 from ..model import Group, User
 from ..ms_graph import DeltaLink, paginate
 
 logger = structlog.stdlib.get_logger()
+
+# Only groups with this prefix are relevant to the sync, everything else is ignored.
+GROUP_PREFIX = "msync-"
 
 
 class GroupNotFoundError(Exception):
@@ -23,15 +30,23 @@ class MicrosoftCloudDirectory:
         self._client = client
 
     async def list_groups(self) -> AsyncIterator[Group]:
+        query_params = GroupsRequestBuilder.GroupsRequestBuilderGetQueryParameters(
+            filter=f"startsWith(displayName, '{GROUP_PREFIX}')"
+        )
+        config = RequestConfiguration(query_parameters=query_params)
         groups = (
             group
-            async for group in paginate(self._client.groups)
+            async for group in paginate(self._client.groups, config)
             if not isinstance(group, DeltaLink)
             if group.display_name is not None
         )
         async for group in groups:
-            assert group.display_name is not None
-            yield Group(name=group.display_name, id=group.id)
+            name = group.display_name
+            assert name is not None
+            name = name.lower()
+            if not name.startswith(GROUP_PREFIX):
+                continue
+            yield Group(name=name, id=group.id)
 
     async def list_group_members(self, group: Group) -> AsyncIterator[User]:
         group_id = await self._resolve_group_name_to_id(group.name)

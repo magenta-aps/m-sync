@@ -3,10 +3,40 @@
 
 """Utilities for talking with Microsoft Cloud Services"""
 
+from collections.abc import AsyncIterator
+from typing import Protocol, Self, TypeVar
+
 from azure.identity.aio import ClientSecretCredential
 from msgraph.graph_service_client import GraphServiceClient
 
 from .config import Settings
+
+T = TypeVar("T")
+
+
+class _Page(Protocol[T]):
+    value: list[T] | None
+    odata_next_link: str | None
+
+
+class _PaginatedRequestBuilder(Protocol[T]):
+    async def get(self) -> _Page[T] | None: ...
+
+    def with_url(self, raw_url: str) -> Self: ...
+
+
+async def paginate(builder: _PaginatedRequestBuilder[T]) -> AsyncIterator[list[T]]:
+    """Helper to traverse paginated queries."""
+
+    while True:
+        response = await builder.get()
+        if response is None:
+            return
+        yield response.value or []
+        next_link = response.odata_next_link
+        if next_link is None:
+            return
+        builder = builder.with_url(next_link)
 
 
 def make_graph_client(settings: Settings) -> GraphServiceClient:

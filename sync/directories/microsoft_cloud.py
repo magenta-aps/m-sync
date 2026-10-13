@@ -7,7 +7,7 @@ import structlog
 from msgraph.graph_service_client import GraphServiceClient
 
 from ..model import Group, User
-from ..ms_graph import paginate
+from ..ms_graph import DeltaLink, paginate
 
 logger = structlog.stdlib.get_logger()
 
@@ -25,8 +25,8 @@ class MicrosoftCloudDirectory:
     async def list_groups(self) -> AsyncIterator[Group]:
         groups = (
             group
-            async for page in paginate(self._client.groups)
-            for group in page
+            async for group in paginate(self._client.groups)
+            if not isinstance(group, DeltaLink)
             if group.display_name is not None
         )
         async for group in groups:
@@ -39,7 +39,11 @@ class MicrosoftCloudDirectory:
             raise GroupNotFoundError(group.name)
 
         builder = self._client.groups.by_group_id(group_id).members
-        members = (member async for page in paginate(builder) for member in page)
+        members = (
+            member
+            async for member in paginate(builder)
+            if not isinstance(member, DeltaLink)
+        )
         async for member in members:
             upn = getattr(member, "user_principal_name", None)
             assert member.id is not None

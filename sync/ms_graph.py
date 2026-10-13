@@ -3,38 +3,64 @@
 
 """Utilities for talking with Microsoft Cloud Services"""
 
-from collections.abc import AsyncIterator
-from typing import Protocol, Self, TypeVar
+from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass
+from typing import Protocol, Self
 
 from azure.identity.aio import ClientSecretCredential
+from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph.graph_service_client import GraphServiceClient
 
 from .config import Settings
 
-T = TypeVar("T")
+
+@dataclass(frozen=True)
+class DeltaLink:
+    url: str
 
 
-class _Page(Protocol[T]):
-    value: list[T] | None
-    odata_next_link: str | None
+class _Page[T](Protocol):
+    """One page of a paginated query response."""
+
+    @property
+    def value(self) -> Sequence[T] | None: ...
+
+    @property
+    def odata_next_link(self) -> str | None: ...
 
 
-class _PaginatedRequestBuilder(Protocol[T]):
-    async def get(self) -> _Page[T] | None: ...
+class PaginatedRequestBuilder[T, Q](Protocol):
+    async def get(
+        self, request_configuration: RequestConfiguration[Q] | None = None
+    ) -> _Page[T] | None: ...
 
     def with_url(self, raw_url: str) -> Self: ...
 
 
-async def paginate(builder: _PaginatedRequestBuilder[T]) -> AsyncIterator[list[T]]:
-    """Helper to traverse paginated queries."""
+async def paginate[T, Q](
+    builder: PaginatedRequestBuilder[T, Q],
+    request_configuration: RequestConfiguration[Q] | None = None,
+) -> AsyncIterator[T | DeltaLink]:
+    """Helper to traverse paginated queries.
+
+    It yields a sequence of values, and may optionally yield a single final
+    DeltaLink object, which can be used for change tracking on queries that
+    support it."""
 
     while True:
-        response = await builder.get()
+        response = await builder.get(request_configuration)
         if response is None:
             return
-        yield response.value or []
+        for value in response.value or []:
+            yield value
         next_link = response.odata_next_link
         if next_link is None:
+            # not all page types returned by Microsoft's SDK have this property,
+            # so we check for it dynamically
+            delta_link: str | None = getattr(response, "odata_delta_link", None)
+
+            if delta_link is not None:
+                yield DeltaLink(delta_link)
             return
         builder = builder.with_url(next_link)
 

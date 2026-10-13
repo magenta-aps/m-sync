@@ -33,3 +33,8 @@ You also need the following to exist in external systems:
 Some tests require a postgres instance to be running, for these, the easiest thing is to
 run them inside a running docker compose stack. You can also spin up a local postgres instance
 if you want to debug.
+
+## Development
+
+If you use [nix](nixos.org), you can spin up a development environment with all the dependencies
+by calling `nix develop`.

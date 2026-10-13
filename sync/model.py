@@ -3,10 +3,12 @@
 
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import TYPE_CHECKING, ClassVar, NewType, Self
+from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
+import starlette.requests
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 from pydantic.functional_validators import model_validator
+from sqlalchemy.ext.asyncio import AsyncEngine
 from typing_extensions import override
 
 GroupwareSystemName = NewType("GroupwareSystemName", str)
@@ -15,6 +17,15 @@ GroupwareSystemName = NewType("GroupwareSystemName", str)
 MICROSOFT_CLOUD = GroupwareSystemName("microsoft_cloud")
 NEXTCLOUD = GroupwareSystemName("nextcloud")
 STALWART = GroupwareSystemName("stalwart")
+
+
+class AppState(TypedDict):
+    """Type hints for the Starlette state dict."""
+
+    db: AsyncEngine
+
+
+Request = starlette.requests.Request[AppState]
 
 
 class UpdateSource(BaseModel):

@@ -13,8 +13,11 @@ stages:
 
 variables:
   IMAGE_SHA: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
-  POETRY_VERSION: 1.3.2
+  POETRY_VERSION: "2.4.1"
   PRECOMMIT_USE_POETRY: "true"
+  # create the poetry venv as .venv in the project directory so basedpyright's
+  # venvPath/venv settings in pyproject.toml resolve in CI as well
+  POETRY_VIRTUALENVS_IN_PROJECT: "true"
 
 
 # Conditions
@@ -46,10 +49,5 @@ workflow:
 lint:commits:
   extends: .lint:commits
 
-# # The pre-commit hooks for ruff and deptry use `language: system`, so their
-# # executables must be installed. The template runs `poetry install`, but this
-# # project has no root package, so it must run with --no-root.
-# Pre-commit:
-#   variables:
-#     PRECOMMIT_USE_POETRY: "true"
-#     POETRY_VERSION: "2.4.1"
+Pre-commit:
+  image: python:3.14

@@ -2,33 +2,84 @@
 # SPDX-License-Identifier: MPL-2.0
 
 import asyncio
+from collections.abc import AsyncGenerator, Sequence
+from contextlib import asynccontextmanager
 
 import structlog
+import uvicorn
+from sqlalchemy.ext.asyncio import AsyncEngine
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse
+from starlette.routing import BaseRoute, Route
 
 from sync.config import DirectoryServiceName, Settings, get_settings
 from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 
 from .core import Core
+from .database import check_database, make_database_engine
 from .groupware.dummy import DummyGroupware
 from .microsoft_cloud import make_graph_client
-from .model import GroupwareSystemName
-from .protocols import DirectoryServiceConnector
+from .model import AppState, GroupwareSystemName, Request
+from .protocols import DirectoryServiceConnector, GroupwareConnector
 
 logger = structlog.stdlib.get_logger()
 
 
-async def main() -> None:
+def main() -> None:
+    """Entry point, constructs and starts the Starlette application based on
+    configuration."""
+
     settings = get_settings()
     directory_service = _make_dir_service_connector(settings)
     core = Core(directory_service)
-    system_alpha = DummyGroupware(GroupwareSystemName("alpha"), core)
-    system_beta = DummyGroupware(GroupwareSystemName("beta"), core)
-    core.add_groupware(system_alpha, system_beta)
+    groupware = [
+        DummyGroupware(GroupwareSystemName("alpha"), core),
+        DummyGroupware(GroupwareSystemName("beta"), core),
+    ]
+    core.add_groupware(*groupware)
 
-    async with asyncio.TaskGroup() as tg:
-        _ = tg.create_task(system_alpha.run())
-        _ = tg.create_task(system_beta.run())
-        _ = tg.create_task(_refresh_users_loop(core))
+    app = make_app(settings, core, groupware)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
+
+
+def make_app(
+    _settings: Settings,
+    core: Core,
+    groupware: Sequence[GroupwareConnector],
+) -> Starlette:
+    """Construct the Starlette web application."""
+
+    database_engine = make_database_engine()
+
+    routes: list[BaseRoute] = []
+    for connector in groupware:
+        if mount := connector.get_webhooks_mount():
+            routes.append(mount)
+    routes.append(Route("/health", _health))
+    routes.append(Route("/health/database", _database_health))
+
+    return Starlette(
+        routes=routes,
+        lifespan=lambda app: _make_app_lifetime(app, core, groupware, database_engine),
+    )
+
+
+@asynccontextmanager
+async def _make_app_lifetime(
+    _app: Starlette,
+    core: Core,
+    groupware: Sequence[GroupwareConnector],
+    database_engine: AsyncEngine,
+) -> AsyncGenerator[AppState]:
+    try:
+        async with asyncio.TaskGroup() as tg:
+            tasks = [tg.create_task(connector.run()) for connector in groupware]
+            tasks.append(tg.create_task(_refresh_users_loop(core)))
+            yield {"db": database_engine}
+            for task in tasks:
+                _ = task.cancel()
+    finally:
+        _ = await database_engine.dispose()
 
 
 def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector:
@@ -44,3 +95,17 @@ async def _refresh_users_loop(core: Core) -> None:
         logger.info("refreshing user list")
         await core.refresh_user_list()
         await asyncio.sleep(5)
+
+
+async def _health(_: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
+
+
+async def _database_health(request: Request) -> JSONResponse:
+    db = request.state["db"]
+    try:
+        await check_database(db)
+    except Exception:
+        logger.warning("database health check failed", exc_info=True)
+        return JSONResponse({"status": "unavailable"}, status_code=503)
+    return JSONResponse({"status": "ok"})

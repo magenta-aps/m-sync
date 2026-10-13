@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
+# SPDX-License-Identifier: MPL-2.0
+
+services:
+  sync:
+    # these two options make it easier to debug a running instance with `docker attach`
+    tty: true
+    stdin_open: true
+
+    build:
+      context: .
+      args:
+        # use uid/gid <= 65536 to allow rootless podman
+        uid: 52020
+        gid: 52020
+    env_file:
+      - .env
+    volumes:
+      - ./poetry.lock:/app/poetry.lock
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./sync:/app/sync
+      - ./tests:/app/tests
+      - ./.pytest_cache:/app/.pytest_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: msync
+      POSTGRES_PASSWORD: msync
+      POSTGRES_DB: msync
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U msync -d msync"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

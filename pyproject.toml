@@ -24,6 +24,7 @@ starlette = "^1.7.0"
 uvicorn = "^0.38.0"
 sqlalchemy = { version = "^2.0.44", extras = ["asyncio"] }
 psycopg = { version = "^3.2", extras = ["binary"] }
+microsoft-kiota-abstractions = "^1.14.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1"

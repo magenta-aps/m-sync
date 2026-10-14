@@ -3,9 +3,10 @@
 
 """Utilities for talking with Microsoft Cloud Services"""
 
+from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
-from typing import Protocol, Self
+from typing import Protocol, Self, override
 
 import structlog
 from azure.identity.aio import ClientSecretCredential
@@ -73,54 +74,65 @@ async def paginate[T, Q](
         builder = builder.with_url(next_link)
 
 
-def make_graph_client(settings: Settings) -> GraphServiceClient:
-    """Connects and authenticates to Microsoft Cloud through its Graph API, returning
-    a client object you can make queries through. This object automatically refreshes
-    the connections and auth tokens."""
+class MsGraph(ABC):
+    @abstractmethod
+    def list_groups(self, prefix: str) -> AsyncIterator[Group]: ...
 
-    assert settings.microsoft_cloud is not None, "missing Microsoft Cloud configuration"
-    credentials = ClientSecretCredential(
-        tenant_id=settings.microsoft_cloud.tenant_id,
-        client_id=settings.microsoft_cloud.client_id,
-        client_secret=settings.microsoft_cloud.client_secret.get_secret_value(),
-    )
-    return GraphServiceClient(credentials)
+    @abstractmethod
+    def list_group_members(self, group_id: str) -> AsyncIterator[User]: ...
 
 
-async def list_groups(client: GraphServiceClient, prefix: str) -> AsyncIterator[Group]:
-    escaped_prefix = prefix.replace("'", "''")
-    query_params = GroupsRequestBuilder.GroupsRequestBuilderGetQueryParameters(
-        filter=f"startsWith(displayName, '{escaped_prefix}')"
-    )
-    config = RequestConfiguration(query_parameters=query_params)
-    groups = (
-        group
-        async for group in paginate(client.groups, config)
-        if not isinstance(group, DeltaLink)
-        if group.display_name is not None
-    )
-    async for group in groups:
-        name = group.display_name
-        assert name is not None
-        name = name.lower()
-        if not name.startswith(prefix):
-            continue
-        yield Group(name=name, id=group.id)
+class RealMsGraph(MsGraph):
+    _sdk_client: GraphServiceClient
 
+    def __init__(self, settings: Settings) -> None:
+        """Connects and authenticates to Microsoft Cloud through its Graph API, returning
+        a client object you can make queries through. This object automatically refreshes
+        the connections and auth tokens."""
 
-async def list_group_members(
-    client: GraphServiceClient, group_id: str
-) -> AsyncIterator[User]:
-    builder = client.groups.by_group_id(group_id).members
-    members = (
-        member
-        async for member in paginate(builder)
-        if not isinstance(member, DeltaLink)
-    )
-    async for member in members:
-        upn = getattr(member, "user_principal_name", None)
-        assert member.id is not None
-        if not isinstance(upn, str):
-            logger.warning("user does not have a UPN", id=member.id)
-            upn = ""
-        yield User(name=upn, id=member.id)
+        assert settings.microsoft_cloud is not None, (
+            "missing Microsoft Cloud configuration"
+        )
+        credentials = ClientSecretCredential(
+            tenant_id=settings.microsoft_cloud.tenant_id,
+            client_id=settings.microsoft_cloud.client_id,
+            client_secret=settings.microsoft_cloud.client_secret.get_secret_value(),
+        )
+        self._sdk_client = GraphServiceClient(credentials)
+
+    @override
+    async def list_groups(self, prefix: str) -> AsyncIterator[Group]:
+        escaped_prefix = prefix.replace("'", "''")
+        query_params = GroupsRequestBuilder.GroupsRequestBuilderGetQueryParameters(
+            filter=f"startsWith(displayName, '{escaped_prefix}')"
+        )
+        config = RequestConfiguration(query_parameters=query_params)
+        groups = (
+            group
+            async for group in paginate(self._sdk_client.groups, config)
+            if not isinstance(group, DeltaLink)
+            if group.display_name is not None
+        )
+        async for group in groups:
+            name = group.display_name
+            assert name is not None
+            name = name.lower()
+            if not name.startswith(prefix):
+                continue
+            yield Group(name=name, id=group.id)
+
+    @override
+    async def list_group_members(self, group_id: str) -> AsyncIterator[User]:
+        builder = self._sdk_client.groups.by_group_id(group_id).members
+        members = (
+            member
+            async for member in paginate(builder)
+            if not isinstance(member, DeltaLink)
+        )
+        async for member in members:
+            upn = getattr(member, "user_principal_name", None)
+            assert member.id is not None
+            if not isinstance(upn, str):
+                logger.warning("user does not have a UPN", id=member.id)
+                upn = ""
+            yield User(name=upn, id=member.id)

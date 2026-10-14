@@ -4,10 +4,9 @@
 from collections.abc import AsyncIterator
 
 import structlog
-from msgraph.graph_service_client import GraphServiceClient
 
 from ..model import Group, User
-from ..ms_graph import list_group_members, list_groups
+from ..ms_graph import MsGraph
 
 logger = structlog.stdlib.get_logger()
 
@@ -20,20 +19,20 @@ class GroupNotFoundError(Exception):
 
 
 class MicrosoftCloudDirectory:
-    _client: GraphServiceClient
+    _client: MsGraph
 
-    def __init__(self, client: GraphServiceClient) -> None:
+    def __init__(self, client: MsGraph) -> None:
         self._client = client
 
     def list_groups(self) -> AsyncIterator[Group]:
-        return list_groups(self._client, GROUP_PREFIX)
+        return self._client.list_groups(GROUP_PREFIX)
 
     async def list_group_members(self, group: Group) -> AsyncIterator[User]:
         group_id = await self._resolve_group_name_to_id(group.name)
         if group_id is None:
             raise GroupNotFoundError(group.name)
 
-        async for user in list_group_members(self._client, group_id):
+        async for user in self._client.list_group_members(group_id):
             yield user
 
     async def _resolve_group_name_to_id(self, group_name: str) -> str | None:

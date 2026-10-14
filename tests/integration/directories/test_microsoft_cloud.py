@@ -7,20 +7,20 @@ from more_itertools import one
 from sync.config import Settings
 from sync.directories.microsoft_cloud import GROUP_PREFIX, MicrosoftCloudDirectory
 from sync.model import Group
-from sync.ms_graph import make_graph_client
+from sync.ms_graph import RealMsGraph
 
 
 @pytest.fixture
 def directory(
     settings: Settings,
 ) -> MicrosoftCloudDirectory:
-    return MicrosoftCloudDirectory(make_graph_client(settings))
+    return MicrosoftCloudDirectory(RealMsGraph(settings))
 
 
 async def test_auth(settings: Settings) -> None:
     """This just checks that a client is created succesfully."""
 
-    _ = make_graph_client(settings)
+    _ = RealMsGraph(settings)
 
 
 async def test_list_groups(directory: MicrosoftCloudDirectory) -> None:

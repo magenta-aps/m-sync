@@ -40,5 +40,5 @@ class MicrosoftCloudDirectory:
         # get a single result, but it is possible that multiple results are
         # returned, so we also check for an exact match
         async for group in self._client.list_groups(prefix=group_name):
-            if group.name.lower() == group_name:
+            if group.name.lower() == group_name.lower():
                 return group.id

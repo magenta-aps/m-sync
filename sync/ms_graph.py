@@ -7,11 +7,19 @@ from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Protocol, Self
 
+import structlog
 from azure.identity.aio import ClientSecretCredential
 from kiota_abstractions.base_request_configuration import RequestConfiguration
+from msgraph.generated.groups.groups_request_builder import (  # pyright: ignore[reportMissingTypeStubs]
+    GroupsRequestBuilder,
+)
 from msgraph.graph_service_client import GraphServiceClient
 
+from sync.model import Group, User
+
 from .config import Settings
+
+logger = structlog.stdlib.get_logger()
 
 
 @dataclass(frozen=True)
@@ -77,3 +85,42 @@ def make_graph_client(settings: Settings) -> GraphServiceClient:
         client_secret=settings.microsoft_cloud.client_secret.get_secret_value(),
     )
     return GraphServiceClient(credentials)
+
+
+async def list_groups(client: GraphServiceClient, prefix: str) -> AsyncIterator[Group]:
+    escaped_prefix = prefix.replace("'", "''")
+    query_params = GroupsRequestBuilder.GroupsRequestBuilderGetQueryParameters(
+        filter=f"startsWith(displayName, '{escaped_prefix}')"
+    )
+    config = RequestConfiguration(query_parameters=query_params)
+    groups = (
+        group
+        async for group in paginate(client.groups, config)
+        if not isinstance(group, DeltaLink)
+        if group.display_name is not None
+    )
+    async for group in groups:
+        name = group.display_name
+        assert name is not None
+        name = name.lower()
+        if not name.startswith(prefix):
+            continue
+        yield Group(name=name, id=group.id)
+
+
+async def list_group_members(
+    client: GraphServiceClient, group_id: str
+) -> AsyncIterator[User]:
+    builder = client.groups.by_group_id(group_id).members
+    members = (
+        member
+        async for member in paginate(builder)
+        if not isinstance(member, DeltaLink)
+    )
+    async for member in members:
+        upn = getattr(member, "user_principal_name", None)
+        assert member.id is not None
+        if not isinstance(upn, str):
+            logger.warning("user does not have a UPN", id=member.id)
+            upn = ""
+        yield User(name=upn, id=member.id)

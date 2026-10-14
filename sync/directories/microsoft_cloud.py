@@ -36,8 +36,9 @@ class MicrosoftCloudDirectory:
             yield user
 
     async def _resolve_group_name_to_id(self, group_name: str) -> str | None:
-        # TODO: to avoid an expensive query here, we should probably cache the
-        #   name -> id mapping
-        async for group in self.list_groups():
+        # by using the full group_name as the prefix filter, we should usually
+        # get a single result, but it is possible that multiple results are
+        # returned, so we also check for an exact match
+        async for group in self._client.list_groups(prefix=group_name):
             if group.name.lower() == group_name:
                 return group.id

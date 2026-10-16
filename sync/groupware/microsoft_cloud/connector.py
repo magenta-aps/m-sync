@@ -6,7 +6,7 @@ import structlog
 from msgraph.graph_service_client import GraphServiceClient
 from starlette.routing import Mount
 
-from ..model import FreeBusy, GroupwareSystemName, User
+from ...model import FreeBusy, GroupwareSystemName, User
 
 logger = structlog.stdlib.get_logger()
 

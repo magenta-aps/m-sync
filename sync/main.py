@@ -18,8 +18,8 @@ from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 from .core import Core
 from .database import check_database, make_database_engine
 from .groupware.dummy import DummyGroupware
-from .microsoft_cloud import make_graph_client
 from .model import AppState, GroupwareSystemName, Request
+from .ms_graph import RealMsGraph
 from .protocols import DirectoryServiceConnector, GroupwareConnector
 
 logger = structlog.stdlib.get_logger()
@@ -87,7 +87,7 @@ def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector
         case DirectoryServiceName.DUMMY:
             raise NotImplementedError
         case DirectoryServiceName.MICROSOFT_CLOUD:
-            return MicrosoftCloudDirectory(make_graph_client(settings))
+            return MicrosoftCloudDirectory(RealMsGraph(settings))
 
 
 async def _refresh_users_loop(core: Core) -> None:

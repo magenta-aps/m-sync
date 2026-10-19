@@ -3,8 +3,9 @@
 
 
 import structlog
-from msgraph.graph_service_client import GraphServiceClient
 from starlette.routing import Mount
+
+from sync.ms_graph import MsGraph
 
 from ...model import FreeBusy, GroupwareSystemName, User
 
@@ -12,9 +13,9 @@ logger = structlog.stdlib.get_logger()
 
 
 class MicrosoftCloudGroupware:
-    _client: GraphServiceClient
+    _client: MsGraph
 
-    def __init__(self, client: GraphServiceClient) -> None:
+    def __init__(self, client: MsGraph) -> None:
         self._client = client
 
     async def run(self) -> None:

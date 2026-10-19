@@ -152,6 +152,16 @@ class User(BaseModel):
         """
     )
 
+    @override
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, User):
+            return NotImplemented
+        return self.id == other.id
+
 
 class Group(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)

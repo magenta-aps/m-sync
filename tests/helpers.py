@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: MPL-2.0
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import override
 
 import structlog
+from starlette.routing import Mount
 
-from sync.model import Group, User
+from sync.model import FreeBusy, Group, GroupwareSystemName, User
 from sync.ms_graph import MsGraph
 
 logger = structlog.stdlib.get_logger()
@@ -22,6 +24,28 @@ class DummyDirectoryService:
         group: Group,
     ) -> AsyncIterator[User]:
         _ = group
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class DummyGroupware:
+    name: GroupwareSystemName
+
+    async def run(self) -> None:
+        raise NotImplementedError
+
+    def get_groupware_system_name(self) -> GroupwareSystemName:
+        return self.name
+
+    def get_webhooks_mount(self) -> Mount | None:
+        raise NotImplementedError
+
+    async def update_user_list(self, users: set[User]) -> None:
+        logger.info("received update user list", users=users)
+
+    async def send_free_busy(self, user: User, update: FreeBusy) -> None:
+        _ = user
+        _ = update
         raise NotImplementedError
 
 

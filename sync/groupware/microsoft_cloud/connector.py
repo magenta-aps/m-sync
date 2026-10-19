@@ -8,7 +8,7 @@ from starlette.routing import Mount
 
 from ...model import FreeBusy, GroupwareSystemName, User
 from ...ms_graph import MsGraph
-from .database import create_schema_if_not_exists
+from .database import create_schema_if_not_exists, update_user_status
 
 logger = structlog.stdlib.get_logger()
 
@@ -30,14 +30,15 @@ class MicrosoftCloudGroupware:
         # TODO: start up workers
 
     def get_groupware_system_name(self) -> GroupwareSystemName:
-        raise NotImplementedError
+        return GroupwareSystemName("microsoft_cloud")
 
     def get_webhooks_mount(self) -> Mount:
         raise NotImplementedError
 
     async def update_user_list(self, users: set[User]) -> None:
-        _ = users
-        raise NotImplementedError
+        async with self._database() as session:
+            await update_user_status(session, {user.id for user in users})
+            await session.commit()
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None:
         _ = user

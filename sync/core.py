@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+import asyncio
+
 import structlog
 
 from .model import EventCreate, FreeBusy, GroupwareSystemName, UpdateBase, User
@@ -26,8 +28,40 @@ class Core:
             self._connectors[system] = connector
 
     async def update_user_list(self) -> None:
-        # TODO: put actual implementation here
-        pass
+        source_users: dict[GroupwareSystemName, set[User]] = {
+            name: set() for name in self._connectors
+        }
+
+        async for group in self._directory_service.list_groups():
+            pair = group.system_names()
+            if pair is None:
+                logger.info(
+                    "ignoring group with non-matching name",
+                    group_name=group.name,
+                    group_id=group.id,
+                )
+                continue
+            source, _ = pair
+            if source not in source_users:
+                logger.info(
+                    "ignoring group for unknown source system",
+                    source=source,
+                    group_name=group.name,
+                    group_id=group.id,
+                )
+                continue
+
+            source_users[source] |= {
+                member
+                async for member in self._directory_service.list_group_members(group)
+            }
+
+        _ = await asyncio.gather(
+            *(
+                connector.update_user_list(source_users[key])
+                for key, connector in self._connectors.items()
+            )
+        )
 
     async def send_calendar_updates(
         self, user: User, updates: list[UpdateBase]

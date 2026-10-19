@@ -5,6 +5,7 @@
 from textwrap import dedent
 from typing import Literal, final
 
+import structlog
 from sqlalchemy import (
     Column,
     DateTime,
@@ -13,11 +14,14 @@ from sqlalchemy import (
     Table,
     Text,
     TypedColumns,
+    update,
 )
-from sqlalchemy.dialects.postgresql import ENUM, UUID
+from sqlalchemy.dialects.postgresql import ENUM, UUID, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateSchema
 from sqlalchemy.sql.functions import now
+
+logger = structlog.stdlib.get_logger()
 
 _metadata = MetaData(schema="groupware_microsoft_cloud")
 
@@ -126,3 +130,43 @@ async def create_schema_if_not_exists(session: AsyncSession) -> None:
         lambda session: _metadata.create_all(bind=session.connection(), checkfirst=True)
     )
     await session.commit()
+
+
+async def update_user_status(session: AsyncSession, active_users: set[str]) -> None:
+    """Given a list of active users, marks users as active/inactive, or inserts
+    them if they don't exist."""
+
+    # mark inactive users
+    _ = await session.execute(
+        update(users_table)
+        .where(
+            users_table.c.id.not_in(active_users),
+            users_table.c.status != "inactive",
+        )
+        .values(status="inactive")
+    )
+
+    # exit early to avoid INSERT with no values, which is not allowed
+    if not active_users:
+        logger.info("deactivated all users, because no users were passed")
+        return
+
+    # upsert all users that are in `users`, marking them as active
+    _ = await session.execute(
+        insert(users_table)
+        .values([{"id": user, "status": "active"} for user in active_users])
+        .on_conflict_do_update(
+            index_elements=[users_table.c.id],
+            # inactive users get all their scheduling metadata reset, whereas
+            # users that are already active are unaffected
+            where=users_table.c.status == "inactive",
+            set_={
+                "status": "active",
+                "updated_at": now(),
+                "full_sync_due_at": now(),
+                "lock_expires_at": now(),
+                "locked_by": None,
+                "retry_count": 0,
+            },
+        )
+    )

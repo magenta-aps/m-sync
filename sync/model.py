@@ -121,6 +121,22 @@ class FreeBusy(UpdateBase):
     free_busy_status: FreeBusyStatus
 
 
+class CalendarEvent(BaseModel):
+    """An event as read from a calendar: when it is and whether it takes time,
+    and nothing else. One occurrence of a series is an event of its own."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+    original_id: str = Field(
+        description="""\
+            The ID the source system knows the event by, used as
+            `UpdateSource.original_id`. In CalDAV, this is the UID, or
+            `<UID>/<RECURRENCE-ID>` for one occurrence of a series.
+        """
+    )
+    interval: Interval
+    free_busy_status: FreeBusyStatus
+
+
 class User(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     name: str = Field(

@@ -4,13 +4,18 @@
 from collections.abc import AsyncIterator
 from typing import override
 
+import structlog
+
 from sync.model import Group, User
 from sync.ms_graph import MsGraph
 
+logger = structlog.stdlib.get_logger()
+
 
 class DummyDirectoryService:
-    def list_groups(self) -> AsyncIterator[Group]:
-        raise NotImplementedError
+    async def list_groups(self) -> AsyncIterator[Group]:
+        return
+        yield  # pyright: ignore[reportUnreachable]
 
     def list_group_members(
         self,
@@ -28,6 +33,10 @@ class DummyMsGraph(MsGraph):
 
     # map id -> members
     group_members: dict[str, list[User]]
+
+    def __init__(self):
+        self.group_ids = {}
+        self.group_members = {}
 
     @override
     async def list_groups(self, prefix: str) -> AsyncIterator[Group]:

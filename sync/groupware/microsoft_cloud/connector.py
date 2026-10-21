@@ -3,22 +3,31 @@
 
 
 import structlog
-from msgraph.graph_service_client import GraphServiceClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.routing import Mount
 
-from ..model import FreeBusy, GroupwareSystemName, User
+from ...model import FreeBusy, GroupwareSystemName, User
+from ...ms_graph import MsGraph
+from .database import create_schema_if_not_exists
 
 logger = structlog.stdlib.get_logger()
 
 
 class MicrosoftCloudGroupware:
-    _client: GraphServiceClient
+    _client: MsGraph
+    _database: async_sessionmaker[AsyncSession]
 
-    def __init__(self, client: GraphServiceClient) -> None:
+    def __init__(
+        self, client: MsGraph, database: async_sessionmaker[AsyncSession]
+    ) -> None:
         self._client = client
+        self._database = database
 
     async def run(self) -> None:
-        raise NotImplementedError
+        async with self._database() as session:
+            await create_schema_if_not_exists(session)
+
+        # TODO: start up workers
 
     def get_groupware_system_name(self) -> GroupwareSystemName:
         raise NotImplementedError

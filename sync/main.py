@@ -93,7 +93,7 @@ def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector
 async def _refresh_users_loop(core: Core) -> None:
     while True:
         logger.info("refreshing user list")
-        await core.refresh_user_list()
+        await core.update_user_list()
         await asyncio.sleep(5)
 
 

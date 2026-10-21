@@ -27,7 +27,7 @@ class Core:
                 raise ValueError(f"duplicate connector for {system!r}")
             self._connectors[system] = connector
 
-    async def refresh_user_list(self) -> None:
+    async def update_user_list(self) -> None:
         dummy_users = [
             User(name="foo@kommune.dk", id="1"),
             User(name="bar@kommune.dk", id="2"),

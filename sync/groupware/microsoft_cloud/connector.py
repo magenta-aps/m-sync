@@ -35,7 +35,7 @@ class MicrosoftCloudGroupware:
     def get_webhooks_mount(self) -> Mount:
         raise NotImplementedError
 
-    async def update_user_list(self, users: list[User]) -> None:
+    async def update_user_list(self, users: set[User]) -> None:
         _ = users
         raise NotImplementedError
 

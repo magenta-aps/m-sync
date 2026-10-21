@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
-import asyncio
-
 import structlog
 
 from .model import EventCreate, FreeBusy, GroupwareSystemName, UpdateBase, User
@@ -28,17 +26,8 @@ class Core:
             self._connectors[system] = connector
 
     async def update_user_list(self) -> None:
-        dummy_users = [
-            User(name="foo@kommune.dk", id="1"),
-            User(name="bar@kommune.dk", id="2"),
-            User(name="baz@kommune.dk", id="3"),
-        ]
-        _ = await asyncio.gather(
-            *(
-                connector.update_user_list(dummy_users)
-                for connector in self._connectors.values()
-            )
-        )
+        # TODO: put actual implementation here
+        pass
 
     async def send_calendar_updates(
         self, user: User, updates: list[UpdateBase]

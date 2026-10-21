@@ -17,8 +17,7 @@ from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 
 from .core import Core
 from .database import check_database, make_database_engine
-from .groupware.dummy import DummyGroupware
-from .model import AppState, GroupwareSystemName, Request
+from .model import AppState, Request
 from .ms_graph import RealMsGraph
 from .protocols import DirectoryServiceConnector, GroupwareConnector
 
@@ -32,13 +31,8 @@ def main() -> None:
     settings = get_settings()
     directory_service = _make_dir_service_connector(settings)
     core = Core(directory_service)
-    groupware = [
-        DummyGroupware(GroupwareSystemName("alpha"), core),
-        DummyGroupware(GroupwareSystemName("beta"), core),
-    ]
-    core.add_groupware(*groupware)
 
-    app = make_app(settings, core, groupware)
+    app = make_app(settings, core, [])
     uvicorn.run(app, host="0.0.0.0", port=5000)
 
 

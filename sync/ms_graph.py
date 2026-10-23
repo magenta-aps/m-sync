@@ -27,6 +27,10 @@ logger = structlog.stdlib.get_logger()
 class DeltaLink:
     url: str
 
+    @override
+    def __str__(self) -> str:
+        return self.url
+
 
 class _Page[T](Protocol):
     """One page of a paginated query response."""

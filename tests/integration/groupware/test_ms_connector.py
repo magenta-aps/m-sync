@@ -2,13 +2,28 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
-from sqlalchemy import insert
+import pytest
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.functions import now
 
 from sync.groupware.microsoft_cloud.connector import MicrosoftCloudGroupware
-from sync.groupware.microsoft_cloud.database import users_table
+from sync.groupware.microsoft_cloud.database import (
+    create_schema_if_not_exists,
+    users_table,
+)
+from sync.model import User
+from sync.protocols import GroupwareConnector
 from tests.helpers import DummyMsGraph
+
+
+@pytest.fixture
+async def database(
+    empty_db: async_sessionmaker[AsyncSession],
+) -> async_sessionmaker[AsyncSession]:
+    async with empty_db() as session:
+        await create_schema_if_not_exists(session)
+    return empty_db
 
 
 async def test_database_schema_creation(
@@ -31,3 +46,24 @@ async def test_database_schema_creation(
                 retry_count=0,
             )
         )
+
+
+async def test_update_user_list(database: async_sessionmaker[AsyncSession]):
+    """Tests that users can be updated through the GroupwareConnector interface."""
+
+    groupware: GroupwareConnector = MicrosoftCloudGroupware(DummyMsGraph(), database)
+
+    await groupware.update_user_list({User(name="gneurshk", id="user-1")})
+
+    async with database() as session:
+        res = await session.execute(
+            select(
+                users_table.c.id,
+                users_table.c.status,
+            )
+        )
+        row = res.first()
+        assert row is not None
+        id_, status = row
+        assert id_ == "user-1"
+        assert status == "active"

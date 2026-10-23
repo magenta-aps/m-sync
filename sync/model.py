@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+import re
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
@@ -152,6 +153,21 @@ class User(BaseModel):
         """
     )
 
+    @override
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, User):
+            return NotImplemented
+        return self.id == other.id
+
+
+_SYSTEM_PAIR_RE = re.compile(
+    r"msync-(?P<source>[a-zA-Z0-9_]+)-(?P<mirror>[a-zA-Z0-9_]+)"
+)
+
 
 class Group(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
@@ -163,3 +179,13 @@ class Group(BaseModel):
 
         @override
         def __hash__(self) -> int: ...
+
+    def system_names(self) -> tuple[GroupwareSystemName, GroupwareSystemName] | None:
+        if (matches := _SYSTEM_PAIR_RE.fullmatch(self.name)) is None:
+            return None
+        source = matches.group("source")
+        mirror = matches.group("mirror")
+        return (
+            GroupwareSystemName(source),
+            GroupwareSystemName(mirror),
+        )

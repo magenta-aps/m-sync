@@ -41,7 +41,7 @@ async def test_database_schema_creation(
                 id="user-1",
                 status="active",
                 updated_at=now(),
-                full_sync_due_at=now(),
+                sync_due_at=now(),
                 lock_expires_at=now(),
                 retry_count=0,
             )

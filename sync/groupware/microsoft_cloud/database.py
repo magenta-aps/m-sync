@@ -64,14 +64,14 @@ class UsersColumns(TypedColumns):
             """
         ),
     )
-    full_sync_due_at = Column(
+    sync_due_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=now(),
         comment=dedent(
             """\
-            When the next full sync for this user is due. This includes any
-            backoff if the last attempt failed.
+            When the next sync for this user is due. This includes any backoff
+            if the last attempt failed.
             """
         ),
     )
@@ -163,7 +163,7 @@ async def update_user_status(session: AsyncSession, active_users: set[str]) -> N
             set_={
                 "status": "active",
                 "updated_at": now(),
-                "full_sync_due_at": now(),
+                "sync_due_at": now(),
                 "lock_expires_at": now(),
                 "locked_by": None,
                 "retry_count": 0,

@@ -25,6 +25,8 @@ uvicorn = "^0.38.0"
 sqlalchemy = { version = "^2.1", extras = ["asyncio"] }
 psycopg = { version = "^3.2", extras = ["binary"] }
 microsoft-kiota-abstractions = "^1.14.1"
+icalendar = "^7.3.0"
+recurring-ical-events = "^3.8.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1"

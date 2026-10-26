@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+from asyncio import Event, create_task
+
 import pytest
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -32,7 +34,15 @@ async def test_database_schema_creation(
     """On startup, the connector should ensure the schema has been created."""
 
     connector = MicrosoftCloudGroupware(DummyMsGraph(), empty_db)
-    await connector.run()
+
+    stop = Event()
+
+    # at startup, the .run() method should check that the database exists
+    task = create_task(connector.run(stop))
+
+    # .run() never stops unless we ask it to
+    stop.set()
+    await task
 
     async with empty_db() as session:
         # then we check that the schema is what we expect by inserting a row
@@ -41,7 +51,7 @@ async def test_database_schema_creation(
                 id="user-1",
                 status="active",
                 updated_at=now(),
-                full_sync_due_at=now(),
+                sync_due_at=now(),
                 lock_expires_at=now(),
                 retry_count=0,
             )

@@ -2,24 +2,33 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from textwrap import dedent
 from typing import Literal, final
 
 import structlog
 from sqlalchemy import (
     Column,
+    ColumnElement,
     DateTime,
     Integer,
     MetaData,
     Table,
     Text,
     TypedColumns,
+    case,
+    func,
+    select,
     update,
 )
 from sqlalchemy.dialects.postgresql import ENUM, UUID, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateSchema
 from sqlalchemy.sql.functions import now
+
+from sync.ms_graph import DeltaLink
 
 logger = structlog.stdlib.get_logger()
 
@@ -64,14 +73,14 @@ class UsersColumns(TypedColumns):
             """
         ),
     )
-    full_sync_due_at = Column(
+    sync_due_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=now(),
         comment=dedent(
             """\
-            When the next full sync for this user is due. This includes any
-            backoff if the last attempt failed.
+            When the next sync for this user is due. This includes any backoff
+            if the last attempt failed.
             """
         ),
     )
@@ -102,9 +111,19 @@ class UsersColumns(TypedColumns):
         comment=dedent(
             """\
             Number of failed sync attempts since the last success. Drives
-            the backoff applied to full_sync_due_at.
+            the backoff applied to sync_due_at.
             """
         ),
+    )
+    last_full_sync_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last time a full sync succeded.",
+    )
+    last_delta_sync_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last time a delta sync succeded.",
     )
 
 
@@ -163,10 +182,168 @@ async def update_user_status(session: AsyncSession, active_users: set[str]) -> N
             set_={
                 "status": "active",
                 "updated_at": now(),
-                "full_sync_due_at": now(),
+                "sync_due_at": now(),
                 "lock_expires_at": now(),
                 "locked_by": None,
                 "retry_count": 0,
             },
         )
     )
+
+
+@dataclass(frozen=True)
+class UserLock:
+    """A handle to an active user synchronization job."""
+
+    row_id: str
+    lock_id: uuid.UUID
+    delta_link: DeltaLink | None
+    last_full_sync: datetime
+    last_delta_sync: datetime
+
+
+async def acquire_user_job(session: AsyncSession) -> UserLock | None:
+    """Acquire a lock on a user that needs to be synced, returning its ID.
+
+    Returns `None` if there are no pending jobs, or if one could not be selected
+    due to contention."""
+
+    user_is_active = users_table.c.status == "active"
+    user_needs_syncing = users_table.c.sync_due_at <= now()
+    user_is_not_locked = users_table.c.locked_by.is_(None) | (
+        users_table.c.lock_expires_at <= now()
+    )
+
+    next_job_subquery = (
+        select(users_table.c.id)
+        .where(user_is_active & user_needs_syncing & user_is_not_locked)
+        .order_by(users_table.c.updated_at)
+        .limit(1)
+        .with_for_update(skip_locked=True)
+        .scalar_subquery()
+    )
+
+    lock_id = uuid.uuid4()
+
+    backoff = _make_backoff(
+        users_table.c.retry_count, start_delay_secs=1, max_delay_hours=3
+    )
+    # TODO: if we ever need it, we can apply jitter by multiplying with func.random()
+
+    res = await session.execute(
+        update(users_table)
+        .where(users_table.c.id == next_job_subquery)
+        .values(
+            updated_at=now(),
+            sync_due_at=now() + backoff,
+            locked_by=lock_id,
+            lock_expires_at=now() + _make_interval(secs=60),
+            retry_count=users_table.c.retry_count + 1,
+        )
+        .returning(
+            users_table.c.id,
+            users_table.c.delta_link,
+            users_table.c.locked_by,
+            users_table.c.last_delta_sync_at,
+            users_table.c.last_full_sync_at,
+        )
+    )
+
+    maybe_row = res.first()
+    if maybe_row is None:
+        logger.debug("no job to acquire")
+        return None
+    id, delta_link, locked_by, last_delta_sync_at, last_full_sync_at = maybe_row
+    assert locked_by == lock_id, "sanity check"
+
+    return UserLock(
+        row_id=id,
+        lock_id=lock_id,
+        delta_link=DeltaLink(delta_link) if delta_link else None,
+        last_delta_sync=last_delta_sync_at,
+        last_full_sync=last_full_sync_at,
+    )
+
+
+async def commit_user_job(
+    session: AsyncSession,
+    lock: UserLock,
+    new_delta_link: DeltaLink,
+    polling_period: timedelta,
+    *,
+    full_sync: bool,
+) -> None:
+    """Unlock the user row, marking it as succesful.
+
+    If the lock has expired, this does nothing, as another job already took the
+    lock.
+
+    The `full_sync` flag selects whether the `last_full_sync_at` or `last_delta_sync_at`
+    should be updated.
+    """
+
+    _ = await session.execute(
+        update(users_table)
+        .values(
+            updated_at=now(),
+            sync_due_at=now() + _make_interval(secs=polling_period.total_seconds()),
+            locked_by=None,
+            retry_count=0,
+            delta_link=str(new_delta_link),
+            **{
+                "last_full_sync_at" if full_sync else "last_delta_sync_at": now(),
+            },
+        )
+        .where(users_table.c.id == lock.row_id, users_table.c.locked_by == lock.lock_id)
+    )
+
+
+async def abort_user_job(
+    session: AsyncSession,
+    lock: UserLock,
+    *,
+    invalidate_delta_link: bool = False,
+) -> None:
+    """Release the lock, without committing anything."""
+
+    _ = await session.execute(
+        update(users_table)
+        .values(
+            updated_at=now(),
+            locked_by=None,
+            **({"delta_link": None} if invalidate_delta_link else {}),
+        )
+        .where(users_table.c.id == lock.row_id, users_table.c.locked_by == lock.lock_id)
+    )
+
+
+def _make_backoff(
+    retry_count: ColumnElement[int], start_delay_secs: float, max_delay_hours: int
+) -> ColumnElement[timedelta]:
+    """Makes an SQL expression for computing exponential backoff.
+
+    Given the retry count `[0, 1, 2, ...]`, it produces the following sequence:
+
+    ```
+    [0, start, start * 2, start * 4, ..., max, max, max, ...]
+    ```
+
+    """
+
+    scale = case(
+        # on the zeroeth retry, we don't apply any backoff
+        (retry_count == 0, 0),
+        # the -1 is so we start the backoff at 2^0 = 1
+        # the 31 is a cap so we avoid overflow
+        else_=func.pow(2, func.least(retry_count - 1, 31)),
+    )
+
+    return func.least(
+        _make_interval(secs=start_delay_secs) * scale,
+        _make_interval(hours=max_delay_hours),
+    )
+
+
+def _make_interval(hours: int = 0, secs: float = 0) -> ColumnElement[timedelta]:
+    # this is a workaround for this issue: https://github.com/sqlalchemy/sqlalchemy/discussions/8474
+    return func.make_interval(0, 0, 0, 0, hours, 0, secs)

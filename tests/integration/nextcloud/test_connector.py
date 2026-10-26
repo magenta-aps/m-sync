@@ -28,10 +28,10 @@ from sync.groupware.nextcloud.ocs import NextcloudAccounts, OcsClient
 from sync.model import (
     MICROSOFT_CLOUD,
     DatetimeInterval,
+    EventSource,
     FreeBusy,
     FreeBusyStatus,
     FullDayInterval,
-    UpdateSource,
     User,
 )
 from sync.nextcloud.spans import BusyPeriod
@@ -45,13 +45,13 @@ MONDAY_ELEVEN = datetime(2030, 1, 7, 11, tzinfo=UTC)
 TUESDAY_MIDNIGHT = datetime(2030, 1, 8, tzinfo=UTC)
 
 PLANNING = FreeBusy(
-    source=UpdateSource(system=MICROSOFT_CLOUD, original_id="planning"),
+    source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
     timestamp=datetime(2029, 12, 1, tzinfo=UTC),
     interval=DatetimeInterval(start=MONDAY_NINE, end=MONDAY_TEN),
     free_busy_status=FreeBusyStatus.BUSY,
 )
 LUNCH = FreeBusy(
-    source=UpdateSource(system=MICROSOFT_CLOUD, original_id="lunch"),
+    source=EventSource(system=MICROSOFT_CLOUD, original_id="lunch"),
     timestamp=datetime(2029, 12, 1, tzinfo=UTC),
     interval=DatetimeInterval(start=MONDAY_TEN, end=MONDAY_ELEVEN),
     free_busy_status=FreeBusyStatus.TENTATIVE,

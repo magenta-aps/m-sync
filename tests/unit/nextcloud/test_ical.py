@@ -12,8 +12,11 @@ from more_itertools import one
 from structlog.testing import capture_logs
 
 from sync.model import (
+    MICROSOFT_CLOUD,
+    NEXTCLOUD,
     CalendarEvent,
     DatetimeInterval,
+    EventSource,
     FreeBusyStatus,
     FullDayInterval,
     Interval,
@@ -114,7 +117,7 @@ def test_read_events_applies_moved_and_cancelled_occurrences() -> None:
 
     assert [
         (
-            event.original_id,
+            event.source.original_id,
             event.interval.start_datetime().hour,
             event.free_busy_status.value,
         )
@@ -232,7 +235,7 @@ def test_a_written_busy_block_reads_back(status: FreeBusyStatus) -> None:
     t1 = datetime(2026, 10, 2, tzinfo=UTC)
     written_at = datetime(2026, 9, 30, 12, tzinfo=UTC)
     planning = CalendarEvent(
-        original_id="planning",
+        source=EventSource(system=NEXTCLOUD, original_id="planning"),
         interval=DatetimeInterval(start=t0, end=t1),
         free_busy_status=status,
     )
@@ -249,7 +252,7 @@ def test_the_same_update_gives_the_same_bytes() -> None:
     t0 = datetime(2026, 10, 1, tzinfo=UTC)
     t1 = datetime(2026, 10, 2, tzinfo=UTC)
     planning = CalendarEvent(
-        original_id="planning",
+        source=EventSource(system=NEXTCLOUD, original_id="planning"),
         interval=DatetimeInterval(start=t0, end=t1),
         free_busy_status=FreeBusyStatus.BUSY,
     )
@@ -268,13 +271,14 @@ def test_an_event_with_a_date_is_not_a_busy_block() -> None:
     assert read_busy_block(make_calendar(all_day)) is None
 
 
-def test_the_name_is_safe_and_the_same_for_the_same_original_id() -> None:
-    occurrence_id = "a/b+c=" * 100
+def test_the_name_is_safe_and_the_same_for_the_same_source() -> None:
+    occurrence = EventSource(system=NEXTCLOUD, original_id="a/b+c=" * 100)
 
-    name = make_busy_block_name(occurrence_id)
+    name = make_busy_block_name(occurrence)
 
-    assert name == make_busy_block_name(occurrence_id)
-    assert name != make_busy_block_name("planning")
+    assert name == make_busy_block_name(occurrence)
+    planning = EventSource(system=MICROSOFT_CLOUD, original_id="planning")
+    assert name != make_busy_block_name(planning)
     assert name.startswith("msync-busy-") and name.endswith(".ics")
     assert len(name) == len("msync-busy-") + 32 + len(".ics")
     assert "/" not in name
@@ -285,14 +289,18 @@ def test_a_busy_block_is_named_by_its_uid_and_shows_nothing_private() -> None:
     t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
     t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
     planning = CalendarEvent(
-        original_id="weekly-planning/20261001T090000Z",
+        source=EventSource(
+            system=NEXTCLOUD, original_id="weekly-planning/20261001T090000Z"
+        ),
         interval=DatetimeInterval(start=t0, end=t1),
         free_busy_status=FreeBusyStatus.BUSY,
     )
 
     busy_event = one(render_busy_block(planning, written_at).events)
 
-    name = make_busy_block_name("weekly-planning/20261001T090000Z")
+    name = make_busy_block_name(
+        EventSource(system=NEXTCLOUD, original_id="weekly-planning/20261001T090000Z")
+    )
     assert f"{busy_event['UID']}.ics" == name
     assert busy_event["SUMMARY"] == "Busy"
     assert set(cast(Iterable[str], busy_event)) == {
@@ -325,7 +333,7 @@ def test_the_status_of_an_event_sets_how_its_busy_block_shows(
     t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
     t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
     planning = CalendarEvent(
-        original_id="planning",
+        source=EventSource(system=NEXTCLOUD, original_id="planning"),
         interval=DatetimeInterval(start=t0, end=t1),
         free_busy_status=status,
     )
@@ -339,7 +347,7 @@ def test_the_status_of_an_event_sets_how_its_busy_block_shows(
 def test_a_full_day_is_written_as_dates() -> None:
     written_at = datetime(2026, 9, 1, tzinfo=UTC)
     day_off = CalendarEvent(
-        original_id="day-off",
+        source=EventSource(system=NEXTCLOUD, original_id="day-off"),
         interval=FullDayInterval(start=date(2026, 10, 1), end=date(2026, 10, 2)),
         free_busy_status=FreeBusyStatus.BUSY,
     )
@@ -367,7 +375,7 @@ def test_an_event_that_takes_no_time_is_written_transparent_without_an_end(
 ) -> None:
     written_at = datetime(2026, 9, 1, tzinfo=UTC)
     reminder = CalendarEvent(
-        original_id="reminder",
+        source=EventSource(system=NEXTCLOUD, original_id="reminder"),
         interval=no_time,
         free_busy_status=FreeBusyStatus.BUSY,
     )
@@ -383,7 +391,7 @@ def test_an_event_that_ends_before_it_starts_is_written_free_and_logged() -> Non
     t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
     t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
     backwards = CalendarEvent(
-        original_id="backwards",
+        source=EventSource(system=NEXTCLOUD, original_id="backwards"),
         interval=DatetimeInterval(start=t1, end=t0),
         free_busy_status=FreeBusyStatus.BUSY,
     )

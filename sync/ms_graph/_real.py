@@ -12,13 +12,30 @@ from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph.generated.groups.groups_request_builder import (  # pyright: ignore[reportMissingTypeStubs]
     GroupsRequestBuilder,
 )
+from msgraph.generated.models.event import (  # pyright: ignore[reportMissingTypeStubs]
+    Event as _GraphEvent,
+)
+from msgraph.generated.models.free_busy_status import (  # pyright: ignore[reportMissingTypeStubs]
+    FreeBusyStatus as _GraphFreeBusyStatus,
+)
+from msgraph.generated.models.open_type_extension import (  # pyright: ignore[reportMissingTypeStubs]
+    OpenTypeExtension,
+)
 from msgraph.graph_service_client import GraphServiceClient
 
+from sync.ms_graph.time import interval_to_graph_interval
+
 from ..config import Settings
-from ..model import Group, User
+from ..model import CalendarEvent, FreeBusyStatus, Group, User
 from ._base import DeltaLink, MsGraph
 
 logger = structlog.stdlib.get_logger()
+
+_EXTENSION_NAME = "dk.magenta.msync"
+
+
+class MsGraphMisbehavingError(Exception):
+    pass
 
 
 class _Page[T](Protocol):
@@ -126,3 +143,64 @@ class RealMsGraph(MsGraph):
                 id=member.id,
                 mail=mail if isinstance(mail, str) else None,
             )
+
+    @override
+    async def create_event(
+        self,
+        user_id: str,
+        event: CalendarEvent,
+    ) -> str:
+        """Creates an event on the user's calendar.
+
+        If the event's `source` field is set, it will be added to the Microsoft
+        calendar as extension data. This lets you distinguish between an event
+        owned by Microsoft and one that is borrowed."""
+
+        interval = interval_to_graph_interval(event.interval)
+        graph_event = _GraphEvent(
+            subject=event.subject,
+            is_all_day=interval.is_all_day,
+            show_as=_msync_free_busy_to_graph_free_busy(event.free_busy_status),
+            start=interval.start,
+            end=interval.end,
+            extensions=[
+                OpenTypeExtension(
+                    extension_name=_EXTENSION_NAME,
+                    # XXX: there are undocumented restrictions on what data types
+                    #   are allowed here, make sure you test before changing.
+                    #   - Nested dictionaries are not allowed.
+                    #   - Keys must only contain alphanumeric characters and underscores.
+                    additional_data={
+                        "source__system": str(event.source.system),
+                        "source__original_id": event.source.original_id,
+                    },
+                )
+            ]
+            if event.source is not None
+            else None,
+        )
+        event_handle = await self._sdk_client.users.by_user_id(user_id).events.post(
+            graph_event
+        )
+
+        # these edge cases should never happen in practice
+        if event_handle is None:
+            raise MsGraphMisbehavingError("graph did not return an event handle")
+        if event_handle.id is None:
+            raise MsGraphMisbehavingError(
+                "graph returned an event handle, but the ID is None"
+            )
+
+        return event_handle.id
+
+
+def _msync_free_busy_to_graph_free_busy(status: FreeBusyStatus) -> _GraphFreeBusyStatus:
+    match status:
+        case FreeBusyStatus.FREE:
+            return _GraphFreeBusyStatus.Free
+        case FreeBusyStatus.BUSY:
+            return _GraphFreeBusyStatus.Busy
+        case FreeBusyStatus.TENTATIVE:
+            return _GraphFreeBusyStatus.Tentative
+        case FreeBusyStatus.UNKNOWN:
+            return _GraphFreeBusyStatus.Unknown

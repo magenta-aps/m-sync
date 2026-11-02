@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import override
 
-from ..model import Group, User
+from ..model import CalendarEvent, Group, User
 
 
 @dataclass(frozen=True)
@@ -25,3 +25,10 @@ class MsGraph(ABC):
 
     @abstractmethod
     def list_group_members(self, group_id: str) -> AsyncIterator[User]: ...
+
+    @abstractmethod
+    async def create_event(
+        self,
+        user_id: str,
+        event: CalendarEvent,
+    ) -> str: ...

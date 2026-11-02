@@ -165,6 +165,7 @@ class CalendarEvent(BaseModel):
     set, this calendar event is not a copy."""
 
     interval: Interval
+    subject: str | None = None
     free_busy_status: FreeBusyStatus
 
 

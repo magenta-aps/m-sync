@@ -8,7 +8,7 @@ from typing import override
 import structlog
 from starlette.routing import Mount
 
-from sync.model import FreeBusy, Group, GroupwareSystemName, User
+from sync.model import CalendarEvent, FreeBusy, Group, GroupwareSystemName, User
 from sync.ms_graph import MsGraph
 
 logger = structlog.stdlib.get_logger()
@@ -80,3 +80,11 @@ class DummyMsGraph(MsGraph):
         members = self.group_members[group_id]
         for member in members:
             yield member
+
+    @override
+    async def create_event(
+        self,
+        user_id: str,
+        event: CalendarEvent,
+    ) -> str:
+        raise NotImplementedError()

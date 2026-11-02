@@ -193,6 +193,14 @@ class RealMsGraph(MsGraph):
 
         return event_handle.id
 
+    @override
+    async def delete_event(self, user_id: str, event_id: str) -> None:
+        await (
+            self._sdk_client.users.by_user_id(user_id)
+            .events.by_event_id(event_id)
+            .delete()
+        )
+
 
 def _msync_free_busy_to_graph_free_busy(status: FreeBusyStatus) -> _GraphFreeBusyStatus:
     match status:

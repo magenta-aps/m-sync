@@ -32,3 +32,6 @@ class MsGraph(ABC):
         user_id: str,
         event: CalendarEvent,
     ) -> str: ...
+
+    @abstractmethod
+    async def delete_event(self, user_id: str, event_id: str) -> None: ...

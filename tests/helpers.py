@@ -88,3 +88,7 @@ class DummyMsGraph(MsGraph):
         event: CalendarEvent,
     ) -> str:
         raise NotImplementedError()
+
+    @override
+    async def delete_event(self, user_id: str, event_id: str) -> None:
+        raise NotImplementedError()

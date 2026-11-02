@@ -227,3 +227,7 @@ class Group(BaseModel):
             GroupwareSystemName(source),
             GroupwareSystemName(mirror),
         )
+
+
+type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
+"""An arbitrary JSON value."""

@@ -5,6 +5,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime
 from typing import override
 
 from ..model import CalendarEvent, Group, User
@@ -32,6 +33,14 @@ class MsGraph(ABC):
         user_id: str,
         event: CalendarEvent,
     ) -> str: ...
+
+    @abstractmethod
+    def list_calendar_events(
+        self,
+        user_id: str,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> AsyncIterator[tuple[str, CalendarEvent] | DeltaLink]: ...
 
     @abstractmethod
     async def delete_event(self, user_id: str, event_id: str) -> None: ...

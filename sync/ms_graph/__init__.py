@@ -18,7 +18,7 @@ from msgraph.graph_service_client import GraphServiceClient
 
 from sync.model import Group, User
 
-from .config import Settings
+from ..config import Settings
 
 logger = structlog.stdlib.get_logger()
 

@@ -1,12 +1,15 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import structlog
 from msgraph.generated.models.date_time_time_zone import (  # pyright: ignore[reportMissingTypeStubs]
     DateTimeTimeZone,
 )
+
+from ..model import DatetimeInterval, FullDayInterval, Interval
 
 logger = structlog.stdlib.get_logger()
 
@@ -61,3 +64,47 @@ def datetime_to_graph_datetime_timezone(dt: datetime) -> DateTimeTimeZone:
         date_time=dt.replace(tzinfo=None).isoformat(),
         time_zone="UTC",
     )
+
+
+@dataclass(frozen=True)
+class GraphInterval:
+    start: DateTimeTimeZone
+    end: DateTimeTimeZone
+    is_all_day: bool = False
+
+
+def interval_to_graph_interval(
+    interval: Interval,
+) -> GraphInterval:
+    match interval:
+        case DatetimeInterval(start=start, end=end):
+            graph_start = datetime_to_graph_datetime_timezone(start)
+            graph_end = datetime_to_graph_datetime_timezone(end)
+            return GraphInterval(
+                start=graph_start,
+                end=graph_end,
+            )
+        case FullDayInterval() as full_day:
+            # graph's full-day semantics are weird, timestamps should always
+            # be in UTC, even though the timezone is ignored for full-day events
+            # see https://github.com/microsoftgraph/msgraph-sdk-javascript/issues/1158#issuecomment-1411038157
+            start = full_day.start_datetime().replace(tzinfo=UTC)
+            graph_start = datetime_to_graph_datetime_timezone(start)
+            end = full_day.end_datetime().replace(tzinfo=UTC)
+            graph_end = datetime_to_graph_datetime_timezone(end)
+            return GraphInterval(
+                start=graph_start,
+                end=graph_end,
+                is_all_day=True,
+            )
+        case _:
+            assert False, "unreachable"
+
+
+def graph_interval_to_interval(interval: GraphInterval) -> Interval:
+    start = graph_datetime_timezone_to_datetime(interval.start)
+    end = graph_datetime_timezone_to_datetime(interval.end)
+    if interval.is_all_day:
+        return FullDayInterval(start=start.date(), end=end.date())
+    else:
+        return DatetimeInterval(start=start, end=end)

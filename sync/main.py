@@ -94,7 +94,7 @@ def _make_groupware_connectors(
     if settings.microsoft_cloud is not None:
         client = RealMsGraph(settings)
         sessionmaker = make_sessionmaker(database_engine)
-        yield MicrosoftCloudGroupware(client, sessionmaker)
+        yield MicrosoftCloudGroupware(client, sessionmaker, settings)
     if settings.nextcloud is not None:
         logger.warning("nextcloud connector hasn't been implemented yet")
 

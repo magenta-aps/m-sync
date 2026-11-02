@@ -12,6 +12,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.routing import Mount
 
+from ...config import MicrosoftCloudSettings, Settings
 from ...model import (
     CalendarEvent,
     EventPatch,
@@ -35,10 +36,6 @@ _MAX_CONCURRENCY: Final = 5
 # how long to wait when there are no jobs to run, before checking again
 _QUEUE_EMPTY_POLL_PERIOD: Final = timedelta(seconds=2)
 
-# how long to wait between succesful full syncs, 25 is chosen to avoid lining
-# up with other 24-hour cycles on the same machine
-_FULL_SYNC_PERIOD: Final = timedelta(hours=25)
-
 # how long to wait between succesful delta syncs
 _DELTA_SYNC_PERIOD: Final = timedelta(seconds=5)
 
@@ -46,14 +43,18 @@ _DELTA_SYNC_PERIOD: Final = timedelta(seconds=5)
 class MicrosoftCloudGroupware:
     _client: MsGraph
     _database: async_sessionmaker[AsyncSession]
+    _settings: MicrosoftCloudSettings
 
     def __init__(
         self,
         client: MsGraph,
         database: async_sessionmaker[AsyncSession],
+        settings: Settings,
     ) -> None:
         self._client = client
         self._database = database
+        assert settings.microsoft_cloud is not None
+        self._settings = settings.microsoft_cloud
 
     async def setup(self) -> None:
         async with self._database() as session:
@@ -111,7 +112,7 @@ class MicrosoftCloudGroupware:
             if lock is None:
                 await asyncio.sleep(_QUEUE_EMPTY_POLL_PERIOD.total_seconds())
                 continue
-            if _full_sync_due(lock):
+            if _full_sync_due(lock, self._settings):
                 await self._full_sync(worker_id, lock)
             else:
                 await self._delta_sync(worker_id, lock)
@@ -143,11 +144,11 @@ class MicrosoftCloudGroupware:
             await session.commit()
 
 
-def _full_sync_due(lock: UserLock) -> bool:
+def _full_sync_due(lock: UserLock, settings: MicrosoftCloudSettings) -> bool:
     # TODO: if thundering herd ever becomes a problem, we can pick a random number
     #   for each user, which is updated only when a full sync is performed, and
     #   we use that to pick the full sync period randomly
     return (
         lock.delta_link is None
-        or lock.last_full_sync + _FULL_SYNC_PERIOD <= datetime.now(UTC)
+        or lock.last_full_sync + settings.full_sync_period <= datetime.now(UTC)
     )

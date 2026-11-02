@@ -7,6 +7,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.functions import now
 
+from sync.config import Settings
 from sync.groupware.microsoft_cloud.connector import MicrosoftCloudGroupware
 from sync.groupware.microsoft_cloud.database import (
     create_schema_if_not_exists,
@@ -28,10 +29,11 @@ async def database(
 
 async def test_database_schema_creation(
     empty_db: async_sessionmaker[AsyncSession],
+    settings: Settings,
 ) -> None:
     """Calling `setup` should ensure the schema has been created."""
 
-    connector = MicrosoftCloudGroupware(DummyMsGraph(), empty_db)
+    connector = MicrosoftCloudGroupware(DummyMsGraph(), empty_db, settings)
 
     await connector.setup()
 
@@ -49,10 +51,14 @@ async def test_database_schema_creation(
         )
 
 
-async def test_update_user_list(database: async_sessionmaker[AsyncSession]):
+async def test_update_user_list(
+    database: async_sessionmaker[AsyncSession], settings: Settings
+):
     """Tests that users can be updated through the GroupwareConnector interface."""
 
-    groupware: GroupwareConnector = MicrosoftCloudGroupware(DummyMsGraph(), database)
+    groupware: GroupwareConnector = MicrosoftCloudGroupware(
+        DummyMsGraph(), database, settings
+    )
 
     await groupware.update_user_list({User(name="gneurshk", id="user-1")})
 

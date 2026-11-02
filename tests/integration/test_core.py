@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from sync.config import Settings
 from sync.core import Core
 from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 from sync.groupware.microsoft_cloud.connector import MicrosoftCloudGroupware
@@ -28,6 +29,7 @@ async def database(
 
 async def test_refresh_user_list_from_directory(
     database: async_sessionmaker[AsyncSession],
+    settings: Settings,
 ) -> None:
     """Test that user list from directory reaches groupware, passing through core."""
 
@@ -36,7 +38,7 @@ async def test_refresh_user_list_from_directory(
     client.group_members["group-1"] = [User(name="genurshk", id="user-1")]
 
     directory = MicrosoftCloudDirectory(client)
-    groupware = MicrosoftCloudGroupware(client, database)
+    groupware = MicrosoftCloudGroupware(client, database, settings)
 
     core = Core(directory)
     core.add_groupware(groupware)

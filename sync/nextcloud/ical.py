@@ -7,14 +7,19 @@ We extract only when an event is and whether it takes time. Subject, place and
 attendees are never read, so they cannot leak into logs or other systems.
 """
 
-from datetime import UTC, date, datetime, time, tzinfo
+from datetime import UTC, date, datetime, tzinfo
 from typing import cast
 
 import recurring_ical_events  # pyright: ignore[reportMissingTypeStubs]
 from icalendar import Calendar, Component, Event
 from icalendar.tools import to_datetime
 
-from ..model import CalendarEvent, FreeBusyStatus, Interval
+from ..model import (
+    CalendarEvent,
+    DatetimeInterval,
+    FreeBusyStatus,
+    FullDayInterval,
+)
 from .spans import Span
 
 PRODID = "-//Magenta//msync//EN"
@@ -144,16 +149,14 @@ def _make_calendar_event(
     end: date | datetime = event.end
     if isinstance(start, datetime) and isinstance(end, datetime):
         # RFC 5545: a time without a timezone is local time.
-        interval = Interval(
+        interval = DatetimeInterval(
             start=start.replace(tzinfo=start.tzinfo or timezone).astimezone(UTC),
             end=end.replace(tzinfo=end.tzinfo or timezone).astimezone(UTC),
         )
     else:
-        # A full day keeps its date, at midnight UTC as Interval wants it.
-        interval = Interval(
-            full_day=True,
-            start=datetime.combine(start, time.min, tzinfo=UTC),
-            end=datetime.combine(end, time.min, tzinfo=UTC),
+        interval = FullDayInterval(
+            start=start,
+            end=end,
         )
     return CalendarEvent(
         original_id=original_id,

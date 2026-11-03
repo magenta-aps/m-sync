@@ -8,7 +8,7 @@ from icalendar import Calendar, Event
 from icalendar.enums import STATUS, TRANSP
 from more_itertools import one
 
-from sync.model import CalendarEvent
+from sync.model import CalendarEvent, DatetimeInterval, FullDayInterval
 from sync.nextcloud.ical import (
     MAX_OCCURRENCES,
     TooManyOccurrencesError,
@@ -40,6 +40,7 @@ def test_a_start_time_without_timezone_uses_the_given_timezone() -> None:
 
     event = one(read_in_window(make_calendar(floating)))
 
+    assert isinstance(event.interval, DatetimeInterval)
     assert event.interval.start == datetime(2026, 10, 1, 7, 0, tzinfo=UTC)
 
 
@@ -58,9 +59,9 @@ def test_an_all_day_event_is_a_full_day() -> None:
 
     event = one(read_in_window(make_calendar(all_day)))
 
-    assert event.interval.full_day
-    assert event.interval.start == datetime(2026, 10, 1, tzinfo=UTC)
-    assert event.interval.end == datetime(2026, 10, 2, tzinfo=UTC)
+    assert isinstance(event.interval, FullDayInterval)
+    assert event.interval.start == date(2026, 10, 1)
+    assert event.interval.end == date(2026, 10, 2)
 
 
 def test_read_events_applies_moved_and_cancelled_occurrences() -> None:
@@ -82,7 +83,11 @@ def test_read_events_applies_moved_and_cancelled_occurrences() -> None:
     events = read_in_window(make_calendar(standup, moved, cancelled))
 
     assert [
-        (event.original_id, event.interval.start.hour, event.free_busy_status.value)
+        (
+            event.original_id,
+            event.interval.start_datetime().hour,
+            event.free_busy_status.value,
+        )
         for event in events
     ] == [
         ("daily-standup/20261001T090000Z", 9, "busy"),

@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 
 import re
-from datetime import datetime, timezone
+from abc import ABC, abstractmethod
+from datetime import date, datetime, time
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
@@ -46,32 +47,65 @@ class UpdateSource(BaseModel):
     )
 
 
-class Interval(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    full_day: bool = False
-    start: datetime = Field(
-        description="""\
-            The inclusive datetime the event started on.
-
-            If `full_day` is true, the time part is ignored.
-        """
+class Interval(BaseModel, ABC):  # pyright: ignore[reportUnsafeMultipleInheritance]
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        frozen=True,
+        arbitrary_types_allowed=True,
     )
-    end: datetime = Field(
-        description="""\
-            The exclusive datetime the event ends on.
 
-            If `full_day` is true, the time part is ignored. Note that it is
-            still exclusive.
-        """
-    )
+    @abstractmethod
+    def start_datetime(self) -> datetime:
+        """The canonical start datetime."""
+
+    @abstractmethod
+    def end_datetime(self) -> datetime:
+        """The canonical end datetime."""
+
+
+class DatetimeInterval(Interval):
+    start: datetime
+    """The inclusive datetime the event started on."""
+
+    end: datetime
+    """The exclusive datetime the event ends on."""
+
+    @override
+    def start_datetime(self) -> datetime:
+        return self.start
+
+    @override
+    def end_datetime(self) -> datetime:
+        return self.end
 
     @model_validator(mode="after")
-    def _check_datetime_utc(self) -> Self:
-        if self.start.tzinfo != timezone.utc:
-            raise ValueError("start time must be UTC")
-        if self.end.tzinfo != timezone.utc:
-            raise ValueError("end time must be UTC")
+    def _check_datetime_timezone(self) -> Self:
+        if self.start.tzinfo is None:
+            raise ValueError("start time missing a timezone")
+        if self.end.tzinfo is None:
+            raise ValueError("end time missing a timezone")
         return self
+
+
+class FullDayInterval(Interval):
+    """
+    Models a full-day interval. This has the same semantics as iCal, in that
+    it explicitly does not take timezones into account. A full day event should
+    appear on the same date in any timezone.
+    """
+
+    start: date
+    """The inclusive date the event started on."""
+
+    end: date
+    """The exclusive date the event ends on."""
+
+    @override
+    def start_datetime(self) -> datetime:
+        return datetime.combine(date=self.start, time=time(), tzinfo=None)
+
+    @override
+    def end_datetime(self) -> datetime:
+        return datetime.combine(date=self.end, time=time(), tzinfo=None)
 
 
 class FreeBusyStatus(StrEnum):
@@ -89,9 +123,9 @@ class UpdateBase(BaseModel):
     timestamp: datetime
 
     @model_validator(mode="after")
-    def _check_datetime_utc(self) -> Self:
-        if self.timestamp.tzinfo != timezone.utc:
-            raise ValueError("event timestamps must be UTC")
+    def _check_datetime_timezone(self) -> Self:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("event timestamps missing a timezone")
         return self
 
 

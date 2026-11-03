@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
@@ -66,11 +66,11 @@ class Interval(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _check_datetime_utc(self) -> Self:
-        if self.start.tzinfo != timezone.utc:
-            raise ValueError("start time must be UTC")
-        if self.end.tzinfo != timezone.utc:
-            raise ValueError("end time must be UTC")
+    def _check_datetime_timezone(self) -> Self:
+        if self.start.tzinfo is None:
+            raise ValueError("start time missing a timezone")
+        if self.end.tzinfo is None:
+            raise ValueError("end time missing a timezone")
         return self
 
 
@@ -89,9 +89,9 @@ class UpdateBase(BaseModel):
     timestamp: datetime
 
     @model_validator(mode="after")
-    def _check_datetime_utc(self) -> Self:
-        if self.timestamp.tzinfo != timezone.utc:
-            raise ValueError("event timestamps must be UTC")
+    def _check_datetime_timezone(self) -> Self:
+        if self.timestamp.tzinfo is None:
+            raise ValueError("event timestamps missing a timezone")
         return self
 
 

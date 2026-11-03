@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from sync.model import Interval
 
 
-@pytest.mark.xfail(raises=ValidationError, reason="bug reproduction")
 def test_interval_validation():
     _ = Interval(
         full_day=False,

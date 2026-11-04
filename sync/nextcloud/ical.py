@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 """Reading events from Nextcloud's calendar objects. Rendering and reading our
-busy blocks.
+busy blocks. Rendering free/busy requests and reading the answers.
 
 We extract only when an event is and whether it takes time. Subject, place and
 attendees are never read, so they cannot leak into logs or other systems.
@@ -10,11 +10,14 @@ attendees are never read, so they cannot leak into logs or other systems.
 
 import hashlib
 from datetime import UTC, date, datetime, tzinfo
+from itertools import chain
 from typing import cast
 
 import recurring_ical_events  # pyright: ignore[reportMissingTypeStubs]
-from icalendar import Calendar, Component, Event
+import structlog
+from icalendar import Calendar, Component, Event, FreeBusy, vCalAddress
 from icalendar.enums import STATUS, TRANSP
+from icalendar.prop import vPeriod
 from icalendar.tools import to_datetime
 
 from ..model import (
@@ -25,6 +28,8 @@ from ..model import (
     UpdateSource,
 )
 from .spans import BusyPeriod, Span
+
+logger = structlog.stdlib.get_logger()
 
 _PRODID = "-//Magenta//msync//EN"
 
@@ -289,3 +294,64 @@ def read_busy_block_timestamp(calendar: Calendar) -> datetime | None:
     if not isinstance(timestamp, datetime) or timestamp.tzinfo is None:
         return None
     return timestamp.astimezone(UTC)
+
+
+def render_free_busy_request(
+    organizer_href: str, address: str, window: Span, timestamp: datetime
+) -> Calendar:
+    """A scheduling request for the free/busy of `address` in the window."""
+    free_busy = FreeBusy.new(
+        uid=f"msync-{window.start.astimezone(UTC):%Y%m%dT%H%M%SZ}",
+        stamp=timestamp.astimezone(UTC),
+        start=window.start.astimezone(UTC),
+        end=window.end.astimezone(UTC),
+        organizer=vCalAddress(organizer_href),
+    )
+    free_busy.add("attendee", vCalAddress(f"mailto:{address}"))  # pyright: ignore[reportUnknownMemberType]
+    calendar = Calendar()
+    calendar.version = "2.0"
+    calendar.prodid = _PRODID
+    calendar.method = "REQUEST"
+    calendar.add_component(free_busy)
+    return calendar
+
+
+def read_busy_periods(calendar: Calendar) -> list[BusyPeriod]:
+    """The busy and tentative periods in a free/busy answer."""
+    # FREEBUSY holds one vPeriod for one period and a list for more.
+    values: list[vPeriod | list[vPeriod]] = [
+        component.get("FREEBUSY", [])
+        for component in calendar.walk("VFREEBUSY")  # pyright: ignore[reportUnknownMemberType]
+    ]
+    periods = chain.from_iterable(
+        value if isinstance(value, list) else [value] for value in values
+    )
+    busy_periods: list[BusyPeriod] = []
+    for period in periods:
+        free_busy_type = str(period.params.get("FBTYPE", "BUSY")).upper()  # pyright: ignore[reportAny]
+        # FREE and BUSY-UNAVAILABLE (outside working hours) are not busy. Any
+        # other type counts as BUSY, unknown ones too (RFC 5545 3.2.9).
+        if free_busy_type in {"FREE", "BUSY-UNAVAILABLE"}:
+            continue
+        status = (
+            FreeBusyStatus.TENTATIVE
+            if free_busy_type == "BUSY-TENTATIVE"
+            else FreeBusyStatus.BUSY
+        )
+        start, end_or_duration = period.dt
+        end = (
+            end_or_duration
+            if isinstance(end_or_duration, datetime)
+            else start + end_or_duration
+        )
+        # Without a timezone the instant is unknown, so converting it would
+        # wrongly use the local timezone (RFC 5545 requires UTC here).
+        if start.tzinfo is None or end.tzinfo is None:
+            logger.error("skipping free/busy period without a timezone", period=period)
+            continue
+        busy_periods.append(
+            BusyPeriod(
+                start=start.astimezone(UTC), end=end.astimezone(UTC), status=status
+            )
+        )
+    return busy_periods

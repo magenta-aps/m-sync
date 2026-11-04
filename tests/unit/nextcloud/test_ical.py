@@ -4,7 +4,7 @@
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from icalendar import Calendar, Event
+from icalendar import Calendar, Event, FreeBusy, vDDDTypes
 from icalendar.enums import STATUS, TRANSP
 from more_itertools import one
 
@@ -23,11 +23,13 @@ from sync.nextcloud.ical import (
     make_busy_block_name,
     read_busy_block,
     read_busy_block_timestamp,
+    read_busy_periods,
     read_events,
     render_busy_block,
+    render_free_busy_request,
     strip_to_timing,
 )
-from sync.nextcloud.spans import BusyPeriod
+from sync.nextcloud.spans import BusyPeriod, Span
 from tests.unit.nextcloud.helpers import (
     DENMARK,
     make_calendar,
@@ -272,3 +274,81 @@ def test_the_name_is_safe_and_the_same_for_the_same_source() -> None:
     assert name.startswith("msync-busy-") and name.endswith(".ics")
     assert len(name) == len("msync-busy-") + 32 + len(".ics")
     assert "/" not in name
+
+
+def test_a_free_busy_request_asks_for_one_address_in_utc() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, tzinfo=DENMARK)
+    t1 = datetime(2026, 10, 2, tzinfo=DENMARK)
+    window = Span(start=t0, end=t1)
+
+    request = render_free_busy_request(
+        "/remote.php/dav/principals/users/msync/",
+        "anne@example.com",
+        window,
+        written_at,
+    )
+
+    calendar = Calendar.from_ical(request.to_ical())
+    assert calendar["METHOD"] == "REQUEST"
+    free_busy = one(calendar.freebusy)
+    assert free_busy["ORGANIZER"] == "/remote.php/dav/principals/users/msync/"
+    assert free_busy["ATTENDEE"] == "mailto:anne@example.com"
+    start, end = free_busy["DTSTART"], free_busy["DTEND"]
+    assert isinstance(start, vDDDTypes) and isinstance(end, vDDDTypes)
+    # Midnight in Denmark is 22:00 on the previous day in UTC, marked by the Z.
+    assert start.to_ical() == b"20260930T220000Z"
+    assert end.to_ical() == b"20261001T220000Z"
+
+
+def test_busy_and_tentative_periods_are_read_and_the_rest_skipped() -> None:
+    t0 = datetime(2026, 10, 1, tzinfo=DENMARK)
+    t1 = datetime(2026, 10, 2, tzinfo=DENMARK)
+    t2 = datetime(2026, 10, 3, tzinfo=UTC)
+    half_hour = timedelta(minutes=30)
+    free_busy = FreeBusy()
+    free_busy.add("freebusy", (t0, t1))  # pyright: ignore[reportUnknownMemberType]
+    free_busy.add("freebusy", (t2, half_hour), {"FBTYPE": "BUSY-TENTATIVE"})  # pyright: ignore[reportUnknownMemberType]
+    # Parameter values are case-insensitive (RFC 5545 2).
+    free_busy.add("freebusy", (t1, t2), {"FBTYPE": "busy-unavailable"})  # pyright: ignore[reportUnknownMemberType]
+    free_busy.add("freebusy", (t1, t2), {"FBTYPE": "FREE"})  # pyright: ignore[reportUnknownMemberType]
+    free_busy_answer = Calendar()
+    free_busy_answer.add_component(free_busy)
+
+    assert read_busy_periods(free_busy_answer) == [
+        BusyPeriod(start=t0, end=t1),
+        BusyPeriod(start=t2, end=t2 + half_hour, status=FreeBusyStatus.TENTATIVE),
+    ]
+
+
+def test_an_unknown_free_busy_type_is_read_as_busy() -> None:
+    t0 = datetime(2026, 10, 1, tzinfo=UTC)
+    t1 = datetime(2026, 10, 2, tzinfo=UTC)
+    free_busy = FreeBusy()
+    free_busy.add("freebusy", (t0, t1), {"FBTYPE": "X-OUT-OF-OFFICE"})  # pyright: ignore[reportUnknownMemberType]
+    free_busy_answer = Calendar()
+    free_busy_answer.add_component(free_busy)
+
+    assert read_busy_periods(free_busy_answer) == [BusyPeriod(start=t0, end=t1)]
+
+
+def test_a_period_without_a_timezone_is_skipped() -> None:
+    # RFC 5545 requires UTC, so a period without a timezone is broken data.
+    t0 = datetime(2026, 10, 1, tzinfo=None)  # noqa: DTZ001
+    t1 = datetime(2026, 10, 2, tzinfo=None)  # noqa: DTZ001
+    t2 = datetime(2026, 10, 3, tzinfo=UTC)
+    t3 = datetime(2026, 10, 4, tzinfo=UTC)
+    free_busy = FreeBusy()
+    free_busy.add("freebusy", (t0, t1))  # pyright: ignore[reportUnknownMemberType]
+    free_busy.add("freebusy", (t2, t3))  # pyright: ignore[reportUnknownMemberType]
+    free_busy_answer = Calendar()
+    free_busy_answer.add_component(free_busy)
+
+    assert read_busy_periods(free_busy_answer) == [BusyPeriod(start=t2, end=t3)]
+
+
+def test_a_free_busy_answer_without_periods_has_no_busy_time() -> None:
+    free_busy_answer = Calendar()
+    free_busy_answer.add_component(FreeBusy())
+
+    assert read_busy_periods(free_busy_answer) == []

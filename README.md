@@ -12,10 +12,11 @@ flags.
 Then run:
 
 ```bash
-docker compose up --build -d
+# the test override adds a Nextcloud instance to the stack
+docker compose -f compose.yaml -f compose.test.yaml up --build -d
 
 # run all tests, you can also specify a path to run a subset of tests
-docker compose run -it --rm sync pytest .
+docker compose -f compose.yaml -f compose.test.yaml run -it --rm sync pytest .
 ```
 
 You also need the following to exist in external systems:

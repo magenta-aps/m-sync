@@ -85,7 +85,11 @@ def read_busy_block(calendar: Calendar) -> BusyPeriod | None:
     return BusyPeriod(
         start=start.astimezone(UTC),
         end=end.astimezone(UTC),
-        tentative=read_upper_text(event, "STATUS") == "TENTATIVE",
+        status=(
+            FreeBusyStatus.TENTATIVE
+            if read_upper_text(event, "STATUS") == "TENTATIVE"
+            else FreeBusyStatus.BUSY
+        ),
     )
 
 

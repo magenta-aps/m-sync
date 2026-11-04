@@ -26,7 +26,9 @@ def test_a_written_busy_block_reads_back() -> None:
 
     calendar = Calendar.from_ical(ics)
 
-    assert read_busy_block(calendar) == BusyPeriod(start=NINE, end=TEN, tentative=True)
+    assert read_busy_block(calendar) == BusyPeriod(
+        start=NINE, end=TEN, status=FreeBusyStatus.TENTATIVE
+    )
     assert read_busy_block_timestamp(calendar) == written_at
 
 

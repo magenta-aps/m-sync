@@ -6,6 +6,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from ..model import FreeBusyStatus
+
 
 @dataclass(frozen=True, order=True)
 class Span:
@@ -22,4 +24,4 @@ class BusyPeriod:
 
     start: datetime
     end: datetime
-    tentative: bool = False
+    status: FreeBusyStatus = FreeBusyStatus.BUSY

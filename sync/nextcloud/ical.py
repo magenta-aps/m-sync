@@ -1,17 +1,20 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
-"""Reading events from Nextcloud's calendar objects.
+"""Reading events from Nextcloud's calendar objects. Rendering and reading our
+busy blocks.
 
 We extract only when an event is and whether it takes time. Subject, place and
 attendees are never read, so they cannot leak into logs or other systems.
 """
 
+import hashlib
 from datetime import UTC, date, datetime, tzinfo
 from typing import cast
 
 import recurring_ical_events  # pyright: ignore[reportMissingTypeStubs]
 from icalendar import Calendar, Component, Event
+from icalendar.enums import STATUS, TRANSP
 from icalendar.tools import to_datetime
 
 from ..model import (
@@ -19,10 +22,11 @@ from ..model import (
     DatetimeInterval,
     FreeBusyStatus,
     FullDayInterval,
+    UpdateSource,
 )
-from .spans import Span
+from .spans import BusyPeriod, Span
 
-PRODID = "-//Magenta//msync//EN"
+_PRODID = "-//Magenta//msync//EN"
 
 # How many occurrences of one series we sync, so a rule like FREQ=MINUTELY
 # cannot flood us.
@@ -41,6 +45,12 @@ _TIMING_PROPERTIES = (
     "STATUS",
     "TRANSP",
 )
+
+# Every busy block's name starts with this. Anything else is not ours.
+_BUSY_BLOCK_PREFIX = "msync-busy-"
+
+# Hex digits of the hash in a busy block's name: 128 bits.
+_NAME_HASH_LENGTH = 32
 
 
 class TooManyOccurrencesError(Exception):
@@ -72,7 +82,7 @@ def is_recurring(calendar: Calendar) -> bool:
     )
 
 
-def read_upper_text(event: Event, property_name: str) -> str:
+def _read_upper_text(event: Event, property_name: str) -> str:
     """A property as upper-case text, or "" if it is not there."""
     value = cast(object, event.get(property_name))
     return "" if value is None else str(value).strip().upper()
@@ -167,8 +177,8 @@ def _make_calendar_event(
 
 def _read_free_busy_status(event: Event) -> FreeBusyStatus:
     # Read as text: the typed accessors raise on values other clients write.
-    status = read_upper_text(event, "STATUS")
-    if status == "CANCELLED" or read_upper_text(event, "TRANSP") == "TRANSPARENT":
+    status = _read_upper_text(event, "STATUS")
+    if status == "CANCELLED" or _read_upper_text(event, "TRANSP") == "TRANSPARENT":
         return FreeBusyStatus.FREE
     if status == "TENTATIVE":
         return FreeBusyStatus.TENTATIVE
@@ -196,3 +206,86 @@ def _keep_timing(event: Event) -> Event:
         if property_name in event:
             timing_only_event[property_name] = event[property_name]
     return timing_only_event
+
+
+# A busy block is what we write to a ghost's calendar so its free/busy shows
+# another system's busy time. There is one per source event with nothing private.
+def make_busy_block_name(source: UpdateSource) -> str:
+    """The object name of the busy block for one source event. The source id is
+    hashed because it can contain "/" and be longer than the 255 characters
+    Nextcloud allows for an object name."""
+    hash_input = f"{source.system}:{source.original_id}".encode()
+    name_hash = hashlib.sha256(hash_input).hexdigest()[:_NAME_HASH_LENGTH]
+    return f"{_BUSY_BLOCK_PREFIX}{name_hash}.ics"
+
+
+def render_busy_block(
+    busy_block_name: str,
+    start: datetime,
+    end: datetime,
+    status: FreeBusyStatus,
+    timestamp: datetime,
+) -> Calendar:
+    """A busy block that says the time is taken and nothing else. `timestamp` is
+    the time of the source change, so the same update gives the same calendar."""
+    is_tentative = status is FreeBusyStatus.TENTATIVE
+    busy_status = STATUS.TENTATIVE if is_tentative else STATUS.CONFIRMED
+    event = Event.new(
+        # The UID must equal the name. Nextcloud purges a trashed object with
+        # the same UID on PUT, which is what lets the same busy block come back.
+        uid=busy_block_name.removesuffix(".ics"),
+        # In UTC: a time in another timezone would need a VTIMEZONE.
+        stamp=timestamp.astimezone(UTC),
+        start=start.astimezone(UTC),
+        end=end.astimezone(UTC),
+        summary="Busy",
+        transparency=TRANSP.OPAQUE,
+        status=busy_status,
+    )
+    # Wrap the busy event in a calendar, which is what Nextcloud stores.
+    calendar = Calendar()
+    calendar.version = "2.0"
+    calendar.prodid = _PRODID
+    calendar.add_component(event)
+    return calendar
+
+
+def read_busy_block(calendar: Calendar) -> BusyPeriod | None:
+    """What a busy block we wrote says. None if it is not one we can read."""
+    try:
+        events = calendar.events
+        if len(events) != 1:
+            return None
+        event = events[0]
+        start: date | datetime = event.start
+        end: date | datetime = event.end
+    except ValueError:
+        # Includes a missing DTSTART or DTEND.
+        return None
+    # A date has no time of day and no timezone, so it is not a busy block of ours.
+    if not isinstance(start, datetime) or not isinstance(end, datetime):
+        return None
+    # Without a timezone the instant is unknown. We always write UTC.
+    if start.tzinfo is None or end.tzinfo is None:
+        return None
+    return BusyPeriod(
+        start=start.astimezone(UTC),
+        end=end.astimezone(UTC),
+        status=(
+            FreeBusyStatus.TENTATIVE
+            if _read_upper_text(event, "STATUS") == "TENTATIVE"
+            else FreeBusyStatus.BUSY
+        ),
+    )
+
+
+def read_busy_block_timestamp(calendar: Calendar) -> datetime | None:
+    """The DTSTAMP of a busy block we wrote: the time of the update it shows."""
+    try:
+        events = calendar.events
+        timestamp = cast(object, events[0].DTSTAMP) if len(events) == 1 else None
+    except (ValueError, KeyError):
+        return None
+    if not isinstance(timestamp, datetime) or timestamp.tzinfo is None:
+        return None
+    return timestamp.astimezone(UTC)

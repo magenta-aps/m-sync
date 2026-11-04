@@ -8,15 +8,30 @@ from icalendar import Calendar, Event
 from icalendar.enums import STATUS, TRANSP
 from more_itertools import one
 
-from sync.model import CalendarEvent, DatetimeInterval, FullDayInterval
+from sync.model import (
+    MICROSOFT_CLOUD,
+    NEXTCLOUD,
+    CalendarEvent,
+    DatetimeInterval,
+    FreeBusyStatus,
+    FullDayInterval,
+    UpdateSource,
+)
 from sync.nextcloud.ical import (
     MAX_OCCURRENCES,
     TooManyOccurrencesError,
+    make_busy_block_name,
+    read_busy_block,
+    read_busy_block_timestamp,
     read_events,
+    render_busy_block,
     strip_to_timing,
 )
+from sync.nextcloud.spans import BusyPeriod
 from tests.unit.nextcloud.helpers import (
     DENMARK,
+    NINE,
+    TEN,
     make_calendar,
     make_event,
     make_ics,
@@ -168,3 +183,46 @@ def test_a_calendar_read_from_text_gives_the_same_events() -> None:
     from_text = Calendar.from_ical(make_ics(make_series()))
 
     assert read_in_window(from_text) == read_in_window(calendar)
+
+
+@pytest.mark.parametrize("status", [FreeBusyStatus.BUSY, FreeBusyStatus.TENTATIVE])
+def test_a_written_busy_block_reads_back(status: FreeBusyStatus) -> None:
+    written_at = datetime(2026, 9, 30, 12, tzinfo=UTC)
+    busy_block = render_busy_block(
+        "msync-busy-planning.ics", NINE, TEN, status, written_at
+    )
+
+    calendar = Calendar.from_ical(busy_block.to_ical())
+
+    assert read_busy_block(calendar) == BusyPeriod(start=NINE, end=TEN, status=status)
+    assert read_busy_block_timestamp(calendar) == written_at
+
+
+def test_the_same_update_gives_the_same_bytes() -> None:
+    first = render_busy_block(
+        "msync-busy-planning.ics", NINE, TEN, FreeBusyStatus.BUSY, NINE
+    )
+    second = render_busy_block(
+        "msync-busy-planning.ics", NINE, TEN, FreeBusyStatus.BUSY, NINE
+    )
+
+    assert first.to_ical() == second.to_ical()
+
+
+def test_an_event_with_a_date_is_not_a_busy_block() -> None:
+    all_day = make_event(start=NINE.date(), end=TEN.date())
+
+    assert read_busy_block(make_calendar(all_day)) is None
+
+
+def test_the_name_is_safe_and_the_same_for_the_same_source() -> None:
+    occurrence = UpdateSource(system=NEXTCLOUD, original_id="a/b+c=" * 100)
+
+    name = make_busy_block_name(occurrence)
+
+    assert name == make_busy_block_name(occurrence)
+    planning = UpdateSource(system=MICROSOFT_CLOUD, original_id="planning")
+    assert name != make_busy_block_name(planning)
+    assert name.startswith("msync-busy-") and name.endswith(".ics")
+    assert len(name) == len("msync-busy-") + 32 + len(".ics")
+    assert "/" not in name

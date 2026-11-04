@@ -117,7 +117,7 @@ def test_read_events_applies_moved_and_cancelled_occurrences() -> None:
 
     assert [
         (
-            event.source.original_id,
+            event.source.original_id,  # pyright: ignore[reportOptionalMemberAccess]
             event.interval.start_datetime().hour,
             event.free_busy_status.value,
         )

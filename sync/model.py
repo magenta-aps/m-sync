@@ -160,7 +160,10 @@ class CalendarEvent(BaseModel):
     """A full calendar event."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    source: EventSource
+    source: EventSource | None
+    """The source points to the system that owns the original copy. If it isn't
+    set, this calendar event is not a copy."""
+
     interval: Interval
     free_busy_status: FreeBusyStatus
 

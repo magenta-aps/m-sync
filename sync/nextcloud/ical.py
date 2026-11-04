@@ -229,6 +229,7 @@ def make_busy_block_name(source: EventSource) -> str:
 def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     """A busy block that says when the source event is and whether it takes
     time. `stamp` is the time of the source change."""
+    assert event.source is not None
     start, end = _make_busy_block_bounds(event.interval)
     if end < start:
         logger.warning(

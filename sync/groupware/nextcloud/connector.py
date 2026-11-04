@@ -94,6 +94,7 @@ class NextcloudGroupware:
             interval=update.interval,
             free_busy_status=update.free_busy_status,
         )
+        assert event.source is not None
         name = make_busy_block_name(event.source)
         busy_block = render_busy_block(event, update.timestamp)
         calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)

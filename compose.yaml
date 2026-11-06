@@ -9,10 +9,6 @@ services:
 
     build:
       context: .
-      args:
-        # use uid/gid <= 65536 to allow rootless podman
-        uid: 52020
-        gid: 52020
     env_file:
       - .env
     volumes:

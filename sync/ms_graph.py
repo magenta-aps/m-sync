@@ -135,8 +135,13 @@ class RealMsGraph(MsGraph):
         )
         async for member in members:
             upn = getattr(member, "user_principal_name", None)
+            mail = getattr(member, "mail", None)
             assert member.id is not None
             if not isinstance(upn, str):
                 logger.warning("user does not have a UPN", id=member.id)
                 upn = ""
-            yield User(name=upn, id=member.id)
+            yield User(
+                name=upn,
+                id=member.id,
+                mail=mail if isinstance(mail, str) else None,
+            )

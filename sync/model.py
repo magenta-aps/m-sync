@@ -186,6 +186,13 @@ class User(BaseModel):
             system understands.
         """
     )
+    mail: str | None = Field(
+        default=None,
+        description="""\
+            The primary mail address, if the directory has one. Other systems
+            find the user by this address.
+        """,
+    )
 
     @override
     def __hash__(self) -> int:

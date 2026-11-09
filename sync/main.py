@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 import asyncio
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Iterator, Sequence
 from contextlib import asynccontextmanager
 
 import structlog
@@ -14,9 +14,10 @@ from starlette.routing import BaseRoute, Route
 
 from sync.config import DirectoryServiceName, Settings, get_settings
 from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
+from sync.groupware.microsoft_cloud.connector import MicrosoftCloudGroupware
 
 from .core import Core
-from .database import check_database, make_database_engine
+from .database import check_database, make_database_engine, make_sessionmaker
 from .model import AppState, Request
 from .ms_graph import RealMsGraph
 from .protocols import DirectoryServiceConnector, GroupwareConnector
@@ -30,10 +31,10 @@ def main() -> None:
 
     settings = get_settings()
     database_engine = make_database_engine()
-    directory_service = _make_dir_service_connector(settings)
-    core = Core(directory_service)
+    groupware = list(_make_groupware_connectors(settings, database_engine))
+    core = Core(_make_dir_service_connector(settings), *groupware)
 
-    app = make_app(settings, database_engine, core, [])
+    app = make_app(settings, database_engine, core, groupware)
     uvicorn.run(app, host="0.0.0.0", port=5000)
 
 
@@ -83,6 +84,17 @@ def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector
             raise NotImplementedError
         case DirectoryServiceName.MICROSOFT_CLOUD:
             return MicrosoftCloudDirectory(RealMsGraph(settings))
+
+
+def _make_groupware_connectors(
+    settings: Settings, database_engine: AsyncEngine
+) -> Iterator[GroupwareConnector]:
+    if settings.microsoft_cloud is not None:
+        client = RealMsGraph(settings)
+        sessionmaker = make_sessionmaker(database_engine)
+        yield MicrosoftCloudGroupware(client, sessionmaker)
+    if settings.nextcloud is not None:
+        logger.warning("nextcloud connector hasn't been implemented yet")
 
 
 async def _refresh_users_loop(core: Core) -> None:

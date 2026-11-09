@@ -29,21 +29,22 @@ def main() -> None:
     configuration."""
 
     settings = get_settings()
+    database_engine = make_database_engine()
     directory_service = _make_dir_service_connector(settings)
     core = Core(directory_service)
 
-    app = make_app(settings, core, [])
+    app = make_app(settings, database_engine, core, [])
     uvicorn.run(app, host="0.0.0.0", port=5000)
 
 
 def make_app(
     _settings: Settings,
+    database_engine: AsyncEngine,
     core: Core,
     groupware: Sequence[GroupwareConnector],
 ) -> Starlette:
-    """Construct the Starlette web application."""
-
-    database_engine = make_database_engine()
+    """Construct the Starlette web application. Components are injected as arguments
+    to allow tests to pass in mocked implementations."""
 
     routes: list[BaseRoute] = []
     for connector in groupware:

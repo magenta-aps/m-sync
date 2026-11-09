@@ -42,6 +42,7 @@ async def test_list_users(ms_graph: MsGraph) -> None:
     assert group1.id is not None
     user1 = one([user async for user in ms_graph.list_group_members(group1.id)])
     assert user1.name == "laurits-testensen@magentakommune.dk"
+    assert user1.mail == "laurits-testensen@magentakommune.dk"
 
     group2 = one(
         group for group in groups if group.name == "msync-nextcloud-microsoft_cloud"
@@ -49,3 +50,4 @@ async def test_list_users(ms_graph: MsGraph) -> None:
     assert group2.id is not None
     user2 = one([user async for user in ms_graph.list_group_members(group2.id)])
     assert user2.name == "anne-testensen@magentakommune.dk"
+    assert user2.mail == "anne-testensen@magentakommune.dk"

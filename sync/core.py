@@ -16,9 +16,14 @@ class Core:
     _directory_service: DirectoryServiceConnector
     _connectors: dict[GroupwareSystemName, GroupwareConnector]
 
-    def __init__(self, directory_service: DirectoryServiceConnector) -> None:
+    def __init__(
+        self,
+        directory_service: DirectoryServiceConnector,
+        *groupware: GroupwareConnector,
+    ) -> None:
         self._directory_service = directory_service
         self._connectors = {}
+        self.add_groupware(*groupware)
 
     def add_groupware(self, *connectors: GroupwareConnector) -> None:
         for connector in connectors:

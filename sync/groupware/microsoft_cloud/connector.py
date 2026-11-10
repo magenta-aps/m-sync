@@ -41,14 +41,18 @@ class MicrosoftCloudGroupware:
     _database: async_sessionmaker[AsyncSession]
 
     def __init__(
-        self, client: MsGraph, database: async_sessionmaker[AsyncSession]
+        self,
+        client: MsGraph,
+        database: async_sessionmaker[AsyncSession],
     ) -> None:
         self._client = client
         self._database = database
 
-    async def run(self, stop: Event | None = None) -> None:
+    async def setup(self) -> None:
         async with self._database() as session:
             await create_schema_if_not_exists(session)
+
+    async def run(self, stop: Event | None = None) -> None:
         async with TaskGroup() as tg:
             for id in range(_MAX_CONCURRENCY):
                 _ = tg.create_task(self._worker(id, stop))

@@ -31,6 +31,9 @@ class DummyDirectoryService:
 class DummyGroupware:
     name: GroupwareSystemName
 
+    async def setup(self) -> None:
+        """There is nothing to set up for the dummy."""
+
     async def run(self) -> None:
         raise NotImplementedError
 

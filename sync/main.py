@@ -67,6 +67,8 @@ async def _make_app_lifetime(
     groupware: Sequence[GroupwareConnector],
     database_engine: AsyncEngine,
 ) -> AsyncGenerator[AppState]:
+    for connector in groupware:
+        await connector.setup()
     try:
         async with asyncio.TaskGroup() as tg:
             tasks = [tg.create_task(connector.run()) for connector in groupware]

@@ -13,6 +13,10 @@ class GroupwareConnector(Protocol):
     """An adapter that connects an external groupware system like Nextcloud to
     the core"""
 
+    async def setup(self) -> None:
+        """Makes sure the connector is ready to receive requests, must be called
+        before `Core` can forward requests to the connector."""
+
     async def run(self) -> None: ...
 
     def get_groupware_system_name(self) -> GroupwareSystemName: ...

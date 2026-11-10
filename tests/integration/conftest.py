@@ -8,7 +8,11 @@ import pytest
 from dotenv import dotenv_values
 from sqlalchemy import Connection, create_engine, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from sync.config import Settings, get_settings
 from sync.database import DATABASE_URL, make_sessionmaker

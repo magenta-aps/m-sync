@@ -6,15 +6,17 @@ from starlette.testclient import TestClient
 
 from sync.config import Settings
 from sync.core import Core
+from sync.database import make_database_engine
 from sync.main import make_app
 from tests.helpers import DummyDirectoryService
 
 
 def test_health_endpoint_is_reachable(settings: Settings) -> None:
+    database_engine = make_database_engine()
     directory_service = DummyDirectoryService()
     core = Core(directory_service)
 
-    app: Starlette = make_app(settings, core, [])
+    app: Starlette = make_app(settings, database_engine, core, [])
 
     # Intentionally not used as a context manager, so the lifespan (and
     # thus the directory/groupware run loops) is not started.

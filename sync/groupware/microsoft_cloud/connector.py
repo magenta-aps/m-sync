@@ -58,7 +58,7 @@ class MicrosoftCloudGroupware:
         return GroupwareSystemName("microsoft_cloud")
 
     def get_webhooks_mount(self) -> Mount:
-        raise NotImplementedError
+        return Mount("/ms_cloud", routes=[])
 
     async def update_user_list(self, users: set[User]) -> None:
         async with self._database() as session:

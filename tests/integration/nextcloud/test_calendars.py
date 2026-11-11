@@ -45,11 +45,14 @@ async def test_a_prepared_ghost_calendar_is_shared_with_the_service(
     ghost_password: SecretStr,
 ) -> None:
     # Twice: preparing again after a failure must work.
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
+    _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
+    calendar_href = await nextcloud.calendars.prepare_ghost_calendar(
+        ghost, ghost_password
+    )
 
     calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
-    assert calendar_hrefs[ghost].startswith("/remote.php/dav/calendars/")
+    assert calendar_hrefs[ghost] == calendar_href
+    assert calendar_href.startswith("/remote.php/dav/calendars/")
     assert nextcloud_settings.service_user not in calendar_hrefs
 
 
@@ -60,7 +63,7 @@ async def test_a_ghost_calendar_leaves_the_ghost_no_login_token(
     ghost_password: SecretStr,
 ) -> None:
     """A kept session would leave a login token per ghost, ~10k in all."""
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
+    _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
     await nextcloud.calendars.release_ghost_calendar(ghost, ghost_password)
 
     # Nextcloud lists a user's tokens only on its security page and only to the
@@ -87,8 +90,9 @@ async def test_a_ghost_calendar_leaves_the_ghost_no_login_token(
 async def test_busy_blocks_are_written_listed_and_deleted(
     nextcloud: NextcloudClient, ghost: str, ghost_password: SecretStr
 ) -> None:
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
-    calendar_href = (await nextcloud.calendars.list_ghost_calendar_hrefs())[ghost]
+    calendar_href = await nextcloud.calendars.prepare_ghost_calendar(
+        ghost, ghost_password
+    )
 
     await nextcloud.calendars.put_object(
         calendar_href, PLANNING_BUSY_BLOCK_NAME, PLANNING_BUSY_BLOCK
@@ -127,8 +131,9 @@ async def test_busy_time_is_read_with_its_status(
 ) -> None:
     address = f"{ghost}@example.com"
     await nextcloud.accounts.edit_user(ghost, "email", address)
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
-    calendar_href = (await nextcloud.calendars.list_ghost_calendar_hrefs())[ghost]
+    calendar_href = await nextcloud.calendars.prepare_ghost_calendar(
+        ghost, ghost_password
+    )
     busy = render_busy_block(
         "msync-busy-busy.ics", MONDAY_NINE, MONDAY_TEN, FreeBusyStatus.BUSY, MONDAY_NINE
     )
@@ -174,8 +179,9 @@ async def test_an_unknown_address_is_an_error(nextcloud: NextcloudClient) -> Non
 async def test_a_released_ghost_calendar_is_gone(
     nextcloud: NextcloudClient, ghost: str, ghost_password: SecretStr
 ) -> None:
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
-    calendar_href = (await nextcloud.calendars.list_ghost_calendar_hrefs())[ghost]
+    calendar_href = await nextcloud.calendars.prepare_ghost_calendar(
+        ghost, ghost_password
+    )
 
     # Twice: releasing again after a failure must work.
     await nextcloud.calendars.release_ghost_calendar(ghost, ghost_password)
@@ -200,8 +206,9 @@ async def test_a_delete_in_a_read_only_share_is_an_error(
     ghost: str,
     ghost_password: SecretStr,
 ) -> None:
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
-    calendar_href = (await nextcloud.calendars.list_ghost_calendar_hrefs())[ghost]
+    calendar_href = await nextcloud.calendars.prepare_ghost_calendar(
+        ghost, ghost_password
+    )
     await nextcloud.calendars.put_object(
         calendar_href, PLANNING_BUSY_BLOCK_NAME, PLANNING_BUSY_BLOCK
     )

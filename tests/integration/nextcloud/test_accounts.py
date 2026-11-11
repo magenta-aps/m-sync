@@ -91,7 +91,7 @@ async def test_a_ghost_logs_in_with_a_new_password(
     new_password = SecretStr(secrets.token_urlsafe())
     await nextcloud.accounts.set_password(ghost, new_password)
 
-    await nextcloud.calendars.prepare_ghost_calendar(ghost, new_password)
+    _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, new_password)
 
     assert ghost in await nextcloud.calendars.list_ghost_calendar_hrefs()
 
@@ -114,7 +114,7 @@ async def test_a_disabled_ghost_cannot_log_in(
     await nextcloud.accounts.set_enabled(ghost, enabled=False)
 
     with pytest.raises(NextcloudError):
-        await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
+        _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
 
 
 async def test_a_user_sets_its_own_address_without_the_manager(

@@ -11,6 +11,7 @@ import pytest
 from pydantic import SecretStr, TypeAdapter
 
 from sync.config import NextcloudSettings
+from sync.groupware.nextcloud.calendars import get_ghost_calendar_href
 from sync.groupware.nextcloud.client import NextcloudClient
 from sync.groupware.nextcloud.connection import (
     CalendarMissingError,
@@ -54,6 +55,17 @@ async def test_a_prepared_ghost_calendar_is_shared_with_the_service(
     assert calendar_hrefs[ghost] == calendar_href
     assert calendar_href.startswith("/remote.php/dav/calendars/")
     assert nextcloud_settings.service_user not in calendar_hrefs
+
+
+async def test_a_write_to_a_ghost_without_a_calendar_is_a_missing_calendar(
+    nextcloud_settings: NextcloudSettings, nextcloud: NextcloudClient, ghost: str
+) -> None:
+    calendar_href = get_ghost_calendar_href(nextcloud_settings.service_user, ghost)
+
+    with pytest.raises(CalendarMissingError):
+        await nextcloud.calendars.put_object(
+            calendar_href, PLANNING_BUSY_BLOCK_NAME, PLANNING_BUSY_BLOCK
+        )
 
 
 async def test_a_ghost_calendar_leaves_the_ghost_no_login_token(

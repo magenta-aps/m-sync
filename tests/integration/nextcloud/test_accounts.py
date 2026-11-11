@@ -39,11 +39,15 @@ async def test_an_edited_address_reads_back(
 
 
 async def test_listing_ghosts_pages_through_all_of_them(
-    manager_ocs_client: OcsClient, three_ghosts: list[str]
+    nextcloud_settings: NextcloudSettings,
+    manager_ocs_client: OcsClient,
+    three_ghosts: list[str],
 ) -> None:
     # Two per page, so finding all three ghosts takes more than one page.
     # Other members of the group are not ours to assert about.
-    accounts = RealNextcloudAccounts(manager_ocs_client, page_size=2)
+    accounts = RealNextcloudAccounts(
+        manager_ocs_client, nextcloud_settings.url, page_size=2
+    )
 
     ghosts = await accounts.list_ghosts(GHOST_GROUP)
 

@@ -1,18 +1,22 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
+from typing import cast
 
 import pytest
 from icalendar import Calendar, Event, FreeBusy, vDDDTypes
 from icalendar.enums import STATUS, TRANSP
 from more_itertools import one
+from structlog.testing import capture_logs
 
 from sync.model import (
     CalendarEvent,
     DatetimeInterval,
     FreeBusyStatus,
     FullDayInterval,
+    Interval,
 )
 from sync.nextcloud.ical import (
     MAX_OCCURRENCES,
@@ -274,6 +278,125 @@ def test_the_name_is_safe_and_the_same_for_the_same_original_id() -> None:
     assert name.startswith("msync-busy-") and name.endswith(".ics")
     assert len(name) == len("msync-busy-") + 32 + len(".ics")
     assert "/" not in name
+
+
+def test_a_busy_block_is_named_by_its_uid_and_shows_nothing_private() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        original_id="weekly-planning/20261001T090000Z",
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+
+    busy_event = one(render_busy_block(planning, written_at).events)
+
+    name = make_busy_block_name("weekly-planning/20261001T090000Z")
+    assert f"{busy_event['UID']}.ics" == name
+    assert busy_event["SUMMARY"] == "Busy"
+    assert set(cast(Iterable[str], busy_event)) == {
+        "UID",
+        "DTSTAMP",
+        "DTSTART",
+        "DTEND",
+        "SUMMARY",
+        "TRANSP",
+        "STATUS",
+    }
+
+
+@pytest.mark.parametrize(
+    ("status", "transparency", "ical_status"),
+    [
+        (FreeBusyStatus.BUSY, "OPAQUE", "CONFIRMED"),
+        (FreeBusyStatus.TENTATIVE, "OPAQUE", "TENTATIVE"),
+        (FreeBusyStatus.FREE, "TRANSPARENT", "CONFIRMED"),
+        # An unknown event is shown as busy.
+        (FreeBusyStatus.UNKNOWN, "OPAQUE", "CONFIRMED"),
+    ],
+)
+def test_the_status_of_an_event_sets_how_its_busy_block_shows(
+    status: FreeBusyStatus,
+    transparency: str,
+    ical_status: str,
+) -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        original_id="planning",
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=status,
+    )
+
+    busy_event = one(render_busy_block(planning, written_at).events)
+
+    assert busy_event["TRANSP"] == transparency
+    assert busy_event["STATUS"] == ical_status
+
+
+def test_a_full_day_is_written_as_dates() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    day_off = CalendarEvent(
+        original_id="day-off",
+        interval=FullDayInterval(start=date(2026, 10, 1), end=date(2026, 10, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+
+    busy_block = Calendar.from_ical(render_busy_block(day_off, written_at).to_ical())
+
+    busy_event = one(busy_block.events)
+    assert not isinstance(busy_event.start, datetime)
+    assert busy_event.start == date(2026, 10, 1)
+    assert busy_event.end == date(2026, 10, 2)
+
+
+@pytest.mark.parametrize(
+    "no_time",
+    [
+        DatetimeInterval(
+            start=datetime(2026, 10, 1, 9, tzinfo=UTC),
+            end=datetime(2026, 10, 1, 9, tzinfo=UTC),
+        ),
+        FullDayInterval(start=date(2026, 10, 1), end=date(2026, 10, 1)),
+    ],
+)
+def test_an_event_that_takes_no_time_is_written_transparent_without_an_end(
+    no_time: Interval,
+) -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    reminder = CalendarEvent(
+        original_id="reminder",
+        interval=no_time,
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+
+    busy_event = one(render_busy_block(reminder, written_at).events)
+
+    assert "DTEND" not in busy_event
+    assert busy_event["TRANSP"] == "TRANSPARENT"
+
+
+def test_an_event_that_ends_before_it_starts_is_written_free_and_logged() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    backwards = CalendarEvent(
+        original_id="backwards",
+        interval=DatetimeInterval(start=t1, end=t0),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+
+    with capture_logs() as logs:
+        busy_event = one(render_busy_block(backwards, written_at).events)
+
+    assert busy_event["TRANSP"] == "TRANSPARENT"
+    assert {
+        "event": "event ends before it starts",
+        "original_id": "backwards",
+        "log_level": "warning",
+    } in logs
 
 
 def test_a_free_busy_request_asks_for_one_address_in_utc() -> None:

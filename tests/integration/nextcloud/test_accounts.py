@@ -14,6 +14,7 @@ from sync.groupware.nextcloud.client import NextcloudClient
 from sync.groupware.nextcloud.connection import (
     NextcloudError,
     NotFoundError,
+    UserExistsError,
     quote_path_segment,
 )
 from sync.groupware.nextcloud.ocs import (
@@ -148,6 +149,15 @@ async def test_the_manager_does_not_see_users_outside_its_groups(
     assert not await nextcloud.accounts.is_in_group(service_user, GHOST_GROUP)
     with pytest.raises(NotFoundError):
         _ = await nextcloud.accounts.get_account(service_user)
+
+
+async def test_creating_a_user_that_exists_is_a_user_exists_error(
+    nextcloud: NextcloudClient, ghost: str, ghost_password: SecretStr
+) -> None:
+    with pytest.raises(UserExistsError):
+        await nextcloud.accounts.create_user(
+            ghost, "Test Ghost", ghost_password, GHOST_GROUP
+        )
 
 
 async def test_an_unknown_user_is_not_found(nextcloud: NextcloudClient) -> None:

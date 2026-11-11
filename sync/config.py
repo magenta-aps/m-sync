@@ -29,6 +29,10 @@ class NextcloudSettings(BaseModel):
         description="A sub-admin of the ghost group that creates and edits ghosts."
     )
     manager_password: SecretStr
+    calendar_timezone: str = Field(
+        default="Europe/Copenhagen",
+        description="The timezone Nextcloud places full days of ghost calendars in.",
+    )
     allow_http: bool = Field(
         default=False, description="Only for local tests: passwords travel in clear."
     )

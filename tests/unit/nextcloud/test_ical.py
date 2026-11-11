@@ -9,13 +9,10 @@ from icalendar.enums import STATUS, TRANSP
 from more_itertools import one
 
 from sync.model import (
-    MICROSOFT_CLOUD,
-    NEXTCLOUD,
     CalendarEvent,
     DatetimeInterval,
     FreeBusyStatus,
     FullDayInterval,
-    UpdateSource,
 )
 from sync.nextcloud.ical import (
     MAX_OCCURRENCES,
@@ -230,9 +227,12 @@ def test_a_written_busy_block_reads_back(status: FreeBusyStatus) -> None:
     t0 = datetime(2026, 10, 1, tzinfo=UTC)
     t1 = datetime(2026, 10, 2, tzinfo=UTC)
     written_at = datetime(2026, 9, 30, 12, tzinfo=UTC)
-    busy_block = render_busy_block(
-        "msync-busy-planning.ics", t0, t1, status, written_at
+    planning = CalendarEvent(
+        original_id="planning",
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=status,
     )
+    busy_block = render_busy_block(planning, written_at)
 
     calendar = Calendar.from_ical(busy_block.to_ical())
 
@@ -244,12 +244,13 @@ def test_the_same_update_gives_the_same_bytes() -> None:
     written_at = datetime(2026, 9, 1, tzinfo=UTC)
     t0 = datetime(2026, 10, 1, tzinfo=UTC)
     t1 = datetime(2026, 10, 2, tzinfo=UTC)
-    first = render_busy_block(
-        "msync-busy-planning.ics", t0, t1, FreeBusyStatus.BUSY, written_at
+    planning = CalendarEvent(
+        original_id="planning",
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.BUSY,
     )
-    second = render_busy_block(
-        "msync-busy-planning.ics", t0, t1, FreeBusyStatus.BUSY, written_at
-    )
+    first = render_busy_block(planning, written_at)
+    second = render_busy_block(planning, written_at)
 
     assert first.to_ical() == second.to_ical()
 
@@ -263,14 +264,13 @@ def test_an_event_with_a_date_is_not_a_busy_block() -> None:
     assert read_busy_block(make_calendar(all_day)) is None
 
 
-def test_the_name_is_safe_and_the_same_for_the_same_source() -> None:
-    occurrence = UpdateSource(system=NEXTCLOUD, original_id="a/b+c=" * 100)
+def test_the_name_is_safe_and_the_same_for_the_same_original_id() -> None:
+    occurrence_id = "a/b+c=" * 100
 
-    name = make_busy_block_name(occurrence)
+    name = make_busy_block_name(occurrence_id)
 
-    assert name == make_busy_block_name(occurrence)
-    planning = UpdateSource(system=MICROSOFT_CLOUD, original_id="planning")
-    assert name != make_busy_block_name(planning)
+    assert name == make_busy_block_name(occurrence_id)
+    assert name != make_busy_block_name("planning")
     assert name.startswith("msync-busy-") and name.endswith(".ics")
     assert len(name) == len("msync-busy-") + 32 + len(".ics")
     assert "/" not in name

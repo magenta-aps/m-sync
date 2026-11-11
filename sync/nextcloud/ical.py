@@ -15,7 +15,7 @@ from typing import cast
 
 import recurring_ical_events  # pyright: ignore[reportMissingTypeStubs]
 import structlog
-from icalendar import Calendar, Component, Event, FreeBusy, vCalAddress
+from icalendar import Calendar, Component, Event, FreeBusy, Timezone, vCalAddress
 from icalendar.enums import STATUS, TRANSP
 from icalendar.prop import vPeriod
 from icalendar.tools import to_datetime
@@ -25,7 +25,7 @@ from ..model import (
     DatetimeInterval,
     FreeBusyStatus,
     FullDayInterval,
-    UpdateSource,
+    Interval,
 )
 from .spans import BusyPeriod, Span
 
@@ -215,43 +215,42 @@ def _keep_timing(event: Event) -> Event:
 
 # A busy block is what we write to a ghost's calendar so its free/busy shows
 # another system's busy time. There is one per source event with nothing private.
-def make_busy_block_name(source: UpdateSource) -> str:
-    """The object name of the busy block for one source event. The source id is
-    hashed because it can contain "/" and be longer than the 255 characters
-    Nextcloud allows for an object name."""
-    hash_input = f"{source.system}:{source.original_id}".encode()
-    name_hash = hashlib.sha256(hash_input).hexdigest()[:_NAME_HASH_LENGTH]
+def make_busy_block_name(original_id: str) -> str:
+    """The object name of the busy block for one source event. The id is hashed
+    because it can contain "/" and be longer than the 255 characters Nextcloud
+    allows for an object name. A mirrored user has one source, so the id alone
+    is unique in its ghost calendar."""
+    name_hash = hashlib.sha256(original_id.encode()).hexdigest()[:_NAME_HASH_LENGTH]
     return f"{_BUSY_BLOCK_PREFIX}{name_hash}.ics"
 
 
-def render_busy_block(
-    busy_block_name: str,
-    start: datetime,
-    end: datetime,
-    status: FreeBusyStatus,
-    timestamp: datetime,
-) -> Calendar:
-    """A busy block that says the time is taken and nothing else. `timestamp` is
-    the time of the source change, so the same update gives the same calendar."""
-    is_tentative = status is FreeBusyStatus.TENTATIVE
-    busy_status = STATUS.TENTATIVE if is_tentative else STATUS.CONFIRMED
-    event = Event.new(
+def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
+    """A busy block that says when the source event is and whether it takes
+    time. `stamp` is the time of the source change."""
+    start, end = _make_busy_block_bounds(event.interval)
+    if end < start:
+        logger.warning("event ends before it starts", original_id=event.original_id)
+    # Nextcloud refuses an end equal to the start, so an event that takes no time
+    # has no end. A date without an end is a whole day, so it is transparent.
+    takes_time = end > start
+    is_free = event.free_busy_status is FreeBusyStatus.FREE or not takes_time
+    is_tentative = event.free_busy_status is FreeBusyStatus.TENTATIVE
+    busy_event = Event.new(
         # The UID must equal the name. Nextcloud purges a trashed object with
         # the same UID on PUT, which is what lets the same busy block come back.
-        uid=busy_block_name.removesuffix(".ics"),
-        # In UTC: a time in another timezone would need a VTIMEZONE.
-        stamp=timestamp.astimezone(UTC),
-        start=start.astimezone(UTC),
-        end=end.astimezone(UTC),
+        uid=make_busy_block_name(event.original_id).removesuffix(".ics"),
+        stamp=stamp.astimezone(UTC),
+        start=start,
+        end=end if takes_time else None,
         summary="Busy",
-        transparency=TRANSP.OPAQUE,
-        status=busy_status,
+        transparency=TRANSP.TRANSPARENT if is_free else TRANSP.OPAQUE,
+        status=STATUS.TENTATIVE if is_tentative else STATUS.CONFIRMED,
     )
     # Wrap the busy event in a calendar, which is what Nextcloud stores.
     calendar = Calendar()
     calendar.version = "2.0"
     calendar.prodid = _PRODID
-    calendar.add_component(event)
+    calendar.add_component(busy_event)
     return calendar
 
 
@@ -267,7 +266,7 @@ def read_busy_block(calendar: Calendar) -> BusyPeriod | None:
     except ValueError:
         # Includes a missing DTSTART or DTEND.
         return None
-    # A date has no time of day and no timezone, so it is not a busy block of ours.
+    # A full day has dates without a timezone, so it is no busy period.
     if not isinstance(start, datetime) or not isinstance(end, datetime):
         return None
     # Without a timezone the instant is unknown. We always write UTC.
@@ -294,6 +293,29 @@ def read_busy_block_timestamp(calendar: Calendar) -> datetime | None:
     if not isinstance(timestamp, datetime) or timestamp.tzinfo is None:
         return None
     return timestamp.astimezone(UTC)
+
+
+def _make_busy_block_bounds(
+    interval: Interval,
+) -> tuple[date, date] | tuple[datetime, datetime]:
+    """Full days as their dates and other intervals in UTC. A time in another
+    timezone would need a VTIMEZONE."""
+    if isinstance(interval, FullDayInterval):
+        return interval.start, interval.end
+    return (
+        interval.start_datetime().astimezone(UTC),
+        interval.end_datetime().astimezone(UTC),
+    )
+
+
+def render_calendar_timezone(timezone_id: str) -> Calendar:
+    """A calendar that holds only the timezone, as the calendar-timezone
+    property of a CalDAV calendar wants it (RFC 4791 5.2.2)."""
+    calendar = Calendar()
+    calendar.version = "2.0"
+    calendar.prodid = _PRODID
+    calendar.add_component(Timezone.from_tzid(timezone_id))
+    return calendar
 
 
 def render_free_busy_request(

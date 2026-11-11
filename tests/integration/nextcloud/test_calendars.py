@@ -18,8 +18,8 @@ from sync.groupware.nextcloud.connection import (
     UnknownAddressError,
 )
 from sync.groupware.nextcloud.dav import XML_CONTENT_TYPE, DavClient
-from sync.model import FreeBusyStatus
-from sync.nextcloud.ical import read_busy_block, render_busy_block
+from sync.model import CalendarEvent, DatetimeInterval, FreeBusyStatus
+from sync.nextcloud.ical import make_busy_block_name, read_busy_block, render_busy_block
 from sync.nextcloud.spans import BusyPeriod
 
 # A Monday far enough ahead that nothing else is booked then.
@@ -29,14 +29,13 @@ MONDAY_ELEVEN = datetime(2030, 1, 7, 11, tzinfo=UTC)
 MONDAY_MIDNIGHT = datetime(2030, 1, 7, tzinfo=UTC)
 TUESDAY_MIDNIGHT = datetime(2030, 1, 8, tzinfo=UTC)
 
-PLANNING_BUSY_BLOCK_NAME = "msync-busy-planning.ics"
-PLANNING_BUSY_BLOCK = render_busy_block(
-    PLANNING_BUSY_BLOCK_NAME,
-    MONDAY_NINE,
-    MONDAY_TEN,
-    FreeBusyStatus.BUSY,
-    MONDAY_MIDNIGHT,
+PLANNING = CalendarEvent(
+    original_id="planning",
+    interval=DatetimeInterval(start=MONDAY_NINE, end=MONDAY_TEN),
+    free_busy_status=FreeBusyStatus.BUSY,
 )
+PLANNING_BUSY_BLOCK_NAME = make_busy_block_name("planning")
+PLANNING_BUSY_BLOCK = render_busy_block(PLANNING, MONDAY_MIDNIGHT)
 
 
 async def test_a_prepared_ghost_calendar_is_shared_with_the_service(
@@ -146,19 +145,18 @@ async def test_busy_time_is_read_with_its_status(
     calendar_href = await nextcloud.calendars.prepare_ghost_calendar(
         ghost, ghost_password
     )
-    busy = render_busy_block(
-        "msync-busy-busy.ics", MONDAY_NINE, MONDAY_TEN, FreeBusyStatus.BUSY, MONDAY_NINE
+    lunch = CalendarEvent(
+        original_id="lunch",
+        interval=DatetimeInterval(start=MONDAY_TEN, end=MONDAY_ELEVEN),
+        free_busy_status=FreeBusyStatus.TENTATIVE,
     )
-    tentative = render_busy_block(
-        "msync-busy-tentative.ics",
-        MONDAY_TEN,
-        MONDAY_ELEVEN,
-        FreeBusyStatus.TENTATIVE,
-        MONDAY_NINE,
-    )
-    await nextcloud.calendars.put_object(calendar_href, "msync-busy-busy.ics", busy)
     await nextcloud.calendars.put_object(
-        calendar_href, "msync-busy-tentative.ics", tentative
+        calendar_href, PLANNING_BUSY_BLOCK_NAME, PLANNING_BUSY_BLOCK
+    )
+    await nextcloud.calendars.put_object(
+        calendar_href,
+        make_busy_block_name("lunch"),
+        render_busy_block(lunch, MONDAY_MIDNIGHT),
     )
 
     busy_periods = await nextcloud.principals.get_busy_periods_by_type(

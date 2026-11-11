@@ -14,6 +14,7 @@ import httpx
 from icalendar import Calendar
 from pydantic import SecretStr
 
+from ...nextcloud.ical import render_calendar_timezone
 from .connection import (
     CalendarMissingError,
     NextcloudError,
@@ -51,16 +52,6 @@ _PROPFIND_PRIVILEGES_BODY = (
     '<dav:propfind xmlns:dav="DAV:">'
     "<dav:prop><dav:current-user-privilege-set/></dav:prop>"
     "</dav:propfind>"
-)
-
-_MAKE_CALENDAR_BODY = (
-    '<?xml version="1.0" encoding="utf-8"?>'
-    '<caldav:mkcalendar xmlns:dav="DAV:" xmlns:caldav="urn:ietf:params:xml:ns:caldav">'
-    "<dav:set><dav:prop><dav:displayname>msync</dav:displayname>"
-    "<caldav:supported-calendar-component-set>"
-    '<caldav:comp name="VEVENT"/>'
-    "</caldav:supported-calendar-component-set>"
-    "</dav:prop></dav:set></caldav:mkcalendar>"
 )
 
 
@@ -104,16 +95,19 @@ class RealNextcloudCalendars(NextcloudCalendars):
     _service_dav_client: DavClient
     _url: str
     _service_user_id: str
+    _calendar_timezone: str
 
     def __init__(
         self,
         service_dav_client: DavClient,
         url: str,
         service_user_id: str,
+        calendar_timezone: str,
     ) -> None:
         self._service_dav_client = service_dav_client
         self._url = url
         self._service_user_id = service_user_id
+        self._calendar_timezone = calendar_timezone
 
     @override
     async def prepare_ghost_calendar(
@@ -129,7 +123,7 @@ class RealNextcloudCalendars(NextcloudCalendars):
             response = await ghost_dav_client.request(
                 "MKCALENDAR",
                 ghost_calendar_href,
-                _MAKE_CALENDAR_BODY,
+                _make_calendar_body(self._calendar_timezone),
                 headers={"Content-Type": XML_CONTENT_TYPE},
             )
             # 405 means it exists already, from an earlier attempt.
@@ -330,6 +324,23 @@ def get_ghost_calendar_href(service_user_id: str, owner: str) -> str:
 
 def _calendar_home_path(user_id: str) -> str:
     return f"{DAV_ROOT}calendars/{quote_path_segment(user_id)}/"
+
+
+def _make_calendar_body(calendar_timezone: str) -> str:
+    # Nextcloud's free/busy places full days in the timezone of the calendar or
+    # in UTC when it has none.
+    timezone = render_calendar_timezone(calendar_timezone).to_ical().decode()
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<caldav:mkcalendar xmlns:dav="DAV:"'
+        ' xmlns:caldav="urn:ietf:params:xml:ns:caldav">'
+        "<dav:set><dav:prop><dav:displayname>msync</dav:displayname>"
+        "<caldav:supported-calendar-component-set>"
+        '<caldav:comp name="VEVENT"/>'
+        "</caldav:supported-calendar-component-set>"
+        f"<caldav:calendar-timezone>{escape(timezone)}</caldav:calendar-timezone>"
+        "</dav:prop></dav:set></caldav:mkcalendar>"
+    )
 
 
 def _make_calendar_query(start: datetime, end: datetime) -> str:

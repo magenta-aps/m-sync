@@ -39,6 +39,10 @@ class UnknownAddressError(NextcloudError):
     pass
 
 
+class UserExistsError(NextcloudError):
+    pass
+
+
 def make_http_client(
     url: str,
     auth: httpx.Auth,

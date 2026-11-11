@@ -115,45 +115,21 @@ class FreeBusyStatus(StrEnum):
     TENTATIVE = "tentative"
 
 
-class UpdateBase(BaseModel):
-    """Base class with fields common to all kinds of updates."""
+class FreeBusy(BaseModel):
+    """Sent to signal that the free/busy status in a specific interval should be
+    changed on the target calendar."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     source: EventSource
     timestamp: datetime
+    interval: Interval
+    free_busy_status: FreeBusyStatus
 
     @model_validator(mode="after")
     def _check_datetime_timezone(self) -> Self:
         if self.timestamp.tzinfo is None:
             raise ValueError("event timestamps missing a timezone")
         return self
-
-
-class EventCreate(UpdateBase):
-    """An event was created on the source calendar."""
-
-    interval: Interval
-    free_busy_status: FreeBusyStatus = FreeBusyStatus.BUSY
-
-
-class EventDelete(UpdateBase):
-    """An event was deleted from the source calendar."""
-
-
-class EventEdit(UpdateBase):
-    """An event's properties were modified by the source calendar. If a field
-    is `None` it is unchanged."""
-
-    interval: Interval | None = None
-    free_busy_status: FreeBusyStatus | None = None
-
-
-class FreeBusy(UpdateBase):
-    """Sent to signal that the free/busy status in a specific interval should be
-    changed on the target calendar."""
-
-    interval: Interval
-    free_busy_status: FreeBusyStatus
 
 
 class CalendarEvent(BaseModel):

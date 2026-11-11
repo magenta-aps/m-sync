@@ -6,7 +6,7 @@ import asyncio
 
 import structlog
 
-from .model import EventCreate, FreeBusy, GroupwareSystemName, UpdateBase, User
+from .model import GroupwareSystemName, User
 from .protocols import DirectoryServiceConnector, GroupwareConnector
 
 logger = structlog.stdlib.get_logger()
@@ -67,35 +67,3 @@ class Core:
                 for key, connector in self._connectors.items()
             )
         )
-
-    async def send_calendar_updates(
-        self, user: User, updates: list[UpdateBase]
-    ) -> None:
-        """Called by a connector whenever their calendar changes"""
-
-        logger.info("received updates", updates=updates)
-
-        # TODO: hardcoded because no LDAP dummy
-        target = self._connectors[GroupwareSystemName("beta")]
-
-        for update in updates:
-            match update:
-                case EventCreate(
-                    source=source,
-                    timestamp=timestamp,
-                    interval=interval,
-                    free_busy_status=free_busy,
-                ):
-                    await target.send_free_busy(
-                        user,
-                        FreeBusy(
-                            source=source,
-                            timestamp=timestamp,
-                            interval=interval,
-                            free_busy_status=free_busy,
-                        ),
-                    )
-                case _:
-                    raise NotImplementedError("TODO")
-
-        # TODO: actually implement

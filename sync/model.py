@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
 import starlette.requests
-from pydantic import UUID4, BaseModel, ConfigDict, Field
+from pydantic import MISSING, UUID4, BaseModel, ConfigDict, Field
 from pydantic.functional_validators import model_validator
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing_extensions import override
@@ -143,6 +143,34 @@ class CalendarEvent(BaseModel):
     interval: Interval
     subject: str | None = None
     free_busy_status: FreeBusyStatus
+
+
+class EventPatch(BaseModel):
+    """An update to an event, represents only the fields that should be updated.
+
+    The special `MISSING` sentinel is used to mark a field that should be left
+    unchanged."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    source: EventSource
+    """The source is used to locate the event on the target system that should
+    be updated."""
+
+    interval: Interval | MISSING = MISSING
+    subject: str | None | MISSING = MISSING
+    free_busy_status: FreeBusyStatus | MISSING = MISSING
+
+    def is_noop(self) -> bool:
+        """Whether this patch modifies any fields. If no fields are modified,
+        by the patch, this returns true."""
+
+        # check that all fields that can be MISSING are MISSING
+        return (
+            self.interval is MISSING
+            and self.subject is MISSING
+            and self.free_busy_status is MISSING
+        )
 
 
 class User(BaseModel):

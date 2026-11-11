@@ -13,8 +13,10 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, SecretStr, Validati
 
 from .connection import (
     NextcloudError,
+    NotEditableError,
     NotFoundError,
     RateLimitedError,
+    UserExistsError,
     make_http_client,
     quote_path_segment,
     send_request,
@@ -25,6 +27,8 @@ logger = structlog.stdlib.get_logger()
 # Nextcloud accepts at most 500 per page. A page answers well within the
 # connection's 30 s timeout.
 _GHOSTS_PER_PAGE = 500
+
+_USERS_PATH = "/ocs/v2.php/cloud/users"
 
 
 class OcsMeta(BaseModel):
@@ -51,8 +55,10 @@ class _OcsBody[DataType](BaseModel):
 class OcsClient:
     _http_client: httpx.AsyncClient
 
-    def __init__(self, url: str, auth: httpx.Auth) -> None:
-        self._http_client = make_http_client(url, auth)
+    def __init__(
+        self, url: str, auth: httpx.Auth, *, keep_cookies: bool = True
+    ) -> None:
+        self._http_client = make_http_client(url, auth, keep_cookies)
 
     async def call_ocs[DataType](
         self,
@@ -87,11 +93,7 @@ class OcsClient:
             raise NextcloudError(
                 f"{method} {path}: unexpected answer, HTTP {response.status_code}"
             ) from None
-        failure = f"{method} {path}: {meta.message or f'OCS {meta.statuscode}'}"
-        # 998 is what a sub-admin gets for a user outside its groups.
-        if response.status_code == 404 or meta.statuscode in (404, 998):
-            raise NotFoundError(failure)
-        raise NextcloudError(failure)
+        raise _make_failure_error(method, path, response.status_code, meta)
 
     async def close(self) -> None:
         await self._http_client.aclose()
@@ -101,6 +103,23 @@ class OcsClient:
 
     async def __aexit__(self, *_exception_info: object) -> None:
         await self.close()
+
+
+def _make_failure_error(
+    method: str, path: str, http_status: int, meta: OcsMeta
+) -> NextcloudError:
+    failure = f"{method} {path}: {meta.message or f'OCS {meta.statuscode}'}"
+    # 998 is what a sub-admin gets for a user outside its groups.
+    if http_status == 404 or meta.statuscode in (404, 998):
+        return NotFoundError(failure)
+    # 113 is a field the caller may not edit.
+    if meta.statuscode == 113:
+        return NotEditableError(failure)
+    # 102 from a create means the user exists. Other calls answer 102 for other
+    # failures.
+    if method == "POST" and path == _USERS_PATH and meta.statuscode == 102:
+        return UserExistsError(failure)
+    return NextcloudError(failure)
 
 
 class NextcloudAccount(BaseModel):
@@ -157,18 +176,28 @@ class NextcloudAccounts(ABC):
     async def set_password(self, user_id: str, password: SecretStr) -> None: ...
 
     @abstractmethod
+    async def set_enabled(self, user_id: str, *, enabled: bool) -> None: ...
+
+    @abstractmethod
+    async def set_own_email(
+        self, user_id: str, password: SecretStr, email: str
+    ) -> None: ...
+
+    @abstractmethod
     async def delete_user(self, user_id: str) -> None: ...
 
 
 @final
 class RealNextcloudAccounts(NextcloudAccounts):
     _ocs_client: OcsClient
+    _url: str
     _page_size: int
 
     def __init__(
-        self, ocs_client: OcsClient, page_size: int = _GHOSTS_PER_PAGE
+        self, ocs_client: OcsClient, url: str, page_size: int = _GHOSTS_PER_PAGE
     ) -> None:
         self._ocs_client = ocs_client
+        self._url = url
         self._page_size = page_size
 
     @override
@@ -231,7 +260,8 @@ class RealNextcloudAccounts(NextcloudAccounts):
     ) -> None:
         """Create a user in `group` without an e-mail address, so Nextcloud sends
         no welcome mail. A create that fails half-way can leave the user outside
-        `group`. Only a Nextcloud admin can see and delete it there."""
+        `group`. Only a Nextcloud admin can see and delete it there. Raises
+        UserExistsError if the user exists already."""
         # Form-encoded, so a value like `Bo&groups[]=admin` cannot add
         # parameters we never sent.
         form = {
@@ -240,8 +270,7 @@ class RealNextcloudAccounts(NextcloudAccounts):
             "displayName": display_name,
             "groups[]": group,
         }
-        path = "/ocs/v2.php/cloud/users"
-        _ = await self._ocs_client.call_ocs("POST", path, object, form=form)
+        _ = await self._ocs_client.call_ocs("POST", _USERS_PATH, object, form=form)
 
     @override
     async def edit_user(self, user_id: str, field_name: str, field_value: str) -> None:
@@ -255,6 +284,29 @@ class RealNextcloudAccounts(NextcloudAccounts):
         path = f"/ocs/v2.php/cloud/users/{quote_path_segment(user_id)}"
         form = {"key": "password", "value": password.get_secret_value()}
         _ = await self._ocs_client.call_ocs("PUT", path, object, form=form)
+
+    @override
+    async def set_enabled(self, user_id: str, *, enabled: bool) -> None:
+        """A disabled user cannot log in."""
+        action = "enable" if enabled else "disable"
+        path = f"/ocs/v2.php/cloud/users/{quote_path_segment(user_id)}/{action}"
+        _ = await self._ocs_client.call_ocs("PUT", path, object)
+
+    @override
+    async def set_own_email(
+        self, user_id: str, password: SecretStr, email: str
+    ) -> None:
+        """As the user itself, so the edit counts against the user's own rate
+        limit. Raises NotEditableError if Nextcloud lets no user change its own
+        address."""
+        path = f"/ocs/v2.php/cloud/users/{quote_path_segment(user_id)}"
+        form = {"key": "email", "value": email}
+        user_auth = httpx.BasicAuth(user_id, password.get_secret_value())
+        # A client of its own without cookies: the user's session must not leak.
+        async with OcsClient(
+            self._url, user_auth, keep_cookies=False
+        ) as user_ocs_client:
+            _ = await user_ocs_client.call_ocs("PUT", path, object, form=form)
 
     @override
     async def delete_user(self, user_id: str) -> None:

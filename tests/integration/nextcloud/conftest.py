@@ -119,7 +119,7 @@ async def cleanup_accounts(
     async with OcsClient(
         nextcloud_settings.url, admin_auth or manager_auth
     ) as ocs_client:
-        yield RealNextcloudAccounts(ocs_client)
+        yield RealNextcloudAccounts(ocs_client, nextcloud_settings.url)
 
 
 @pytest.fixture

@@ -22,13 +22,25 @@ class MicrosoftCloudSettings(BaseModel):
 class NextcloudSettings(BaseModel):
     url: str
     service_user: str = Field(
-        description="A normal account that ghost calendars are shared with."
+        description=(
+            "A normal account that ghost calendars are shared with. It must be"
+            " allowed to share with every account, so free/busy finds every"
+            " address in use."
+        )
     )
     service_password: SecretStr
     manager_user: str = Field(
         description="A sub-admin of the ghost group that creates and edits ghosts."
     )
     manager_password: SecretStr
+    ghost_group: str = Field(
+        default="msync-ghosts",
+        description="The group of ghost accounts, which the manager is sub-admin of.",
+    )
+    calendar_timezone: str = Field(
+        default="Europe/Copenhagen",
+        description="The timezone Nextcloud places full days of ghost calendars in.",
+    )
     allow_http: bool = Field(
         default=False, description="Only for local tests: passwords travel in clear."
     )

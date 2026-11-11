@@ -50,9 +50,12 @@ class RealNextcloudClient(NextcloudClient):
         )
         self._ocs_client = OcsClient(settings.url, manager_auth)
         self._service_dav_client = DavClient(settings.url, service_auth)
-        self.accounts = RealNextcloudAccounts(self._ocs_client)
+        self.accounts = RealNextcloudAccounts(self._ocs_client, settings.url)
         self.calendars = RealNextcloudCalendars(
-            self._service_dav_client, settings.url, settings.service_user
+            self._service_dav_client,
+            settings.url,
+            settings.service_user,
+            settings.calendar_timezone,
         )
         self.principals = RealNextcloudPrincipals(
             self._service_dav_client, settings.service_user

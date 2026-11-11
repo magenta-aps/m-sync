@@ -31,7 +31,15 @@ class CalendarMissingError(NextcloudError):
     pass
 
 
+class NotEditableError(NextcloudError):
+    pass
+
+
 class UnknownAddressError(NextcloudError):
+    pass
+
+
+class UserExistsError(NextcloudError):
     pass
 
 

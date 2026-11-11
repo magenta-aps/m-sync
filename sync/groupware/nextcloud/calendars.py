@@ -3,6 +3,7 @@
 
 """Ghost calendars over CalDAV: set up by the ghost, written by the service account."""
 
+import re
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Literal, final, override
@@ -13,6 +14,7 @@ import httpx
 from icalendar import Calendar
 from pydantic import SecretStr
 
+from ...nextcloud.ical import render_calendar_timezone
 from .connection import (
     CalendarMissingError,
     NextcloudError,
@@ -31,6 +33,14 @@ from .dav import (
 # The calendar in each ghost that holds our busy blocks.
 _GHOST_CALENDAR = "msync"
 
+# A share is Nextcloud's calendar sharing. Each ghost shares its calendar with
+# the service account, which then finds it in its own calendar home as
+# `msync_shared_by_<owner>`. The busy blocks are written there.
+_SHARED_BY = "_shared_by_"
+
+# The end of the href of a ghost calendar shared with the service account.
+_GHOST_CALENDAR_HREF = re.compile(rf"/{_GHOST_CALENDAR}{_SHARED_BY}(?P<owner>[^/]+)/?$")
+
 _PROPFIND_DISPLAY_NAME_BODY = (
     '<?xml version="1.0"?>'
     '<dav:propfind xmlns:dav="DAV:">'
@@ -44,25 +54,15 @@ _PROPFIND_PRIVILEGES_BODY = (
     "</dav:propfind>"
 )
 
-_MAKE_CALENDAR_BODY = (
-    '<?xml version="1.0" encoding="utf-8"?>'
-    '<caldav:mkcalendar xmlns:dav="DAV:" xmlns:caldav="urn:ietf:params:xml:ns:caldav">'
-    "<dav:set><dav:prop><dav:displayname>msync</dav:displayname>"
-    "<caldav:supported-calendar-component-set>"
-    '<caldav:comp name="VEVENT"/>'
-    "</caldav:supported-calendar-component-set>"
-    "</dav:prop></dav:set></caldav:mkcalendar>"
-)
-
 
 class NextcloudCalendars(ABC):
     @abstractmethod
     async def prepare_ghost_calendar(
         self, owner: str, owner_password: SecretStr
-    ) -> None:
+    ) -> str:
         """As the ghost, give it a calendar shared read-write with the service
-        account and make `personal` transparent. The caller generates the
-        password per call and never stores it."""
+        account and make `personal` transparent. Return the share's href. The
+        caller generates the password per call and never stores it."""
 
     @abstractmethod
     async def release_ghost_calendar(
@@ -95,21 +95,24 @@ class RealNextcloudCalendars(NextcloudCalendars):
     _service_dav_client: DavClient
     _url: str
     _service_user_id: str
+    _calendar_timezone: str
 
     def __init__(
         self,
         service_dav_client: DavClient,
         url: str,
         service_user_id: str,
+        calendar_timezone: str,
     ) -> None:
         self._service_dav_client = service_dav_client
         self._url = url
         self._service_user_id = service_user_id
+        self._calendar_timezone = calendar_timezone
 
     @override
     async def prepare_ghost_calendar(
         self, owner: str, owner_password: SecretStr
-    ) -> None:
+    ) -> str:
         calendar_home = _calendar_home_path(owner)
         ghost_calendar_href = f"{calendar_home}{_GHOST_CALENDAR}/"
         ghost_auth = httpx.BasicAuth(owner, owner_password.get_secret_value())
@@ -120,7 +123,7 @@ class RealNextcloudCalendars(NextcloudCalendars):
             response = await ghost_dav_client.request(
                 "MKCALENDAR",
                 ghost_calendar_href,
-                _MAKE_CALENDAR_BODY,
+                _make_calendar_body(self._calendar_timezone),
                 headers={"Content-Type": XML_CONTENT_TYPE},
             )
             # 405 means it exists already, from an earlier attempt.
@@ -135,6 +138,7 @@ class RealNextcloudCalendars(NextcloudCalendars):
             await _share_read_write(
                 ghost_dav_client, ghost_calendar_href, self._service_user_id
             )
+        return get_ghost_calendar_href(self._service_user_id, owner)
 
     @override
     async def release_ghost_calendar(
@@ -159,7 +163,6 @@ class RealNextcloudCalendars(NextcloudCalendars):
 
     @override
     async def list_ghost_calendar_hrefs(self) -> dict[str, str]:
-        # A share shows up in the receiver's home as `<uri>_shared_by_<owner>`.
         response = await self._service_dav_client.request(
             "PROPFIND",
             _calendar_home_path(self._service_user_id),
@@ -169,7 +172,7 @@ class RealNextcloudCalendars(NextcloudCalendars):
         check_dav_status(response)
         calendar_hrefs: dict[str, str] = {}
         for element in parse_xml(response).iter(f"{DAV_NAMESPACE}href"):
-            ghost_calendar = _read_ghost_calendar_href(element.text or "")
+            ghost_calendar = read_ghost_calendar_href(element.text or "")
             if ghost_calendar is not None:
                 owner, calendar_href = ghost_calendar
                 calendar_hrefs[owner] = calendar_href
@@ -298,22 +301,46 @@ async def _share_read_write(
     check_dav_status(response)
 
 
-def _read_ghost_calendar_href(href: str) -> tuple[str, str] | None:
+def read_ghost_calendar_href(href: str) -> tuple[str, str] | None:
     """The owner and href of a ghost calendar shared with the service account.
     None for any other calendar."""
-    path_before_owner, separator, owner = href.rstrip("/").rpartition("_shared_by_")
-    if not (separator and owner and path_before_owner.endswith(f"/{_GHOST_CALENDAR}")):
+    href_match = _GHOST_CALENDAR_HREF.search(href)
+    if href_match is None:
         return None
     try:
         dav_root_start = href.index(DAV_ROOT)
     except ValueError:
         raise NextcloudError(f"shared calendar outside {DAV_ROOT}: {href}") from None
     # Relative to the DAV root, so a Nextcloud webroot is not doubled.
-    return unquote(owner), href[dav_root_start:]
+    return unquote(href_match["owner"]), href[dav_root_start:]
+
+
+def get_ghost_calendar_href(service_user_id: str, owner: str) -> str:
+    """The href of the owner's ghost calendar as shared with the service account.
+    It makes no request, so the calendar may not exist."""
+    shared_calendar = f"{_GHOST_CALENDAR}{_SHARED_BY}{quote_path_segment(owner)}"
+    return f"{_calendar_home_path(service_user_id)}{shared_calendar}/"
 
 
 def _calendar_home_path(user_id: str) -> str:
     return f"{DAV_ROOT}calendars/{quote_path_segment(user_id)}/"
+
+
+def _make_calendar_body(calendar_timezone: str) -> str:
+    # Nextcloud's free/busy places full days in the timezone of the calendar or
+    # in UTC when it has none.
+    timezone = render_calendar_timezone(calendar_timezone).to_ical().decode()
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<caldav:mkcalendar xmlns:dav="DAV:"'
+        ' xmlns:caldav="urn:ietf:params:xml:ns:caldav">'
+        "<dav:set><dav:prop><dav:displayname>msync</dav:displayname>"
+        "<caldav:supported-calendar-component-set>"
+        '<caldav:comp name="VEVENT"/>'
+        "</caldav:supported-calendar-component-set>"
+        f"<caldav:calendar-timezone>{escape(timezone)}</caldav:calendar-timezone>"
+        "</dav:prop></dav:set></caldav:mkcalendar>"
+    )
 
 
 def _make_calendar_query(start: datetime, end: datetime) -> str:

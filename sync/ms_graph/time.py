@@ -34,6 +34,10 @@ def graph_datetime_timezone_to_datetime(
     `DateTimeTimeZone` is made up of a naive `date_time` and a timezone name. We
     only support UTC timezones, since Microsoft Graph always uses UTC, as long
     as no `Prefer: outlook.timezone` is set in Graph queries.
+
+    Graph represents UTC either as the plain string "UTC" or, in some
+    contexts, as the Windows timezone name "tzone://Microsoft/Utc", so we
+    accept both when parsing.
     """
 
     if dt_tz.date_time is None:
@@ -42,7 +46,7 @@ def graph_datetime_timezone_to_datetime(
     if dt_tz.time_zone is None:
         raise MissingTimezoneError()
 
-    if dt_tz.time_zone != "UTC":
+    if dt_tz.time_zone not in ("UTC", "tzone://Microsoft/Utc"):
         raise UnknownTimezoneError(
             f"timezones other than UTC are not supported: tz={dt_tz.time_zone}"
         )

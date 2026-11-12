@@ -55,7 +55,24 @@ def test_datetime_to_graph_datetime_timezone() -> None:
 
 
 def test_graph_datetime_timezone_to_datetime() -> None:
-    dt_tz = DateTimeTimeZone(date_time="2026-02-09T00:00:00", time_zone="UTC")
+    dt_tz = DateTimeTimeZone(
+        date_time="2026-02-09T00:00:00",
+        time_zone="UTC",
+    )
+
+    dt = graph_datetime_timezone_to_datetime(dt_tz)
+
+    assert dt == datetime(2026, 2, 9, tzinfo=UTC)
+    assert dt.tzinfo == UTC
+
+
+def test_graph_datetime_timezone_to_datetime_microsoft_tz_name() -> None:
+    """Graph also uses the Windows timezone name for UTC in some contexts."""
+
+    dt_tz = DateTimeTimeZone(
+        date_time="2026-02-09T00:00:00",
+        time_zone="tzone://Microsoft/Utc",
+    )
 
     dt = graph_datetime_timezone_to_datetime(dt_tz)
 
@@ -78,8 +95,14 @@ def test_datetime_interval_to_graph_interval() -> None:
 
 
 def test_graph_interval_to_datetime_interval() -> None:
-    t0 = DateTimeTimeZone(date_time="2026-01-01T01:00:00", time_zone="UTC")
-    t1 = DateTimeTimeZone(date_time="2026-01-01T02:00:00", time_zone="UTC")
+    t0 = DateTimeTimeZone(
+        date_time="2026-01-01T01:00:00",
+        time_zone="UTC",
+    )
+    t1 = DateTimeTimeZone(
+        date_time="2026-01-01T02:00:00",
+        time_zone="UTC",
+    )
     graph_interval = GraphInterval(start=t0, end=t1, is_all_day=False)
 
     interval = graph_interval_to_interval(graph_interval)
@@ -108,8 +131,14 @@ def test_full_day_interval_to_graph_interval() -> None:
 
 
 def test_graph_interval_to_full_day_interval() -> None:
-    t0 = DateTimeTimeZone(date_time="2026-01-01T00:00:00", time_zone="UTC")
-    t1 = DateTimeTimeZone(date_time="2026-01-02T00:00:00", time_zone="UTC")
+    t0 = DateTimeTimeZone(
+        date_time="2026-01-01T00:00:00",
+        time_zone="UTC",
+    )
+    t1 = DateTimeTimeZone(
+        date_time="2026-01-02T00:00:00",
+        time_zone="UTC",
+    )
     graph_interval = GraphInterval(start=t0, end=t1, is_all_day=True)
 
     interval = graph_interval_to_interval(graph_interval)

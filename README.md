@@ -1,5 +1,33 @@
 # mSync
 
+mSync is a backend-only service that synchronizes calendars across different
+incompatible groupware systems. Currently Microsoft Cloud (i.e. Microsoft Entra
+for IdP and Microsoft Exchange Online for calendar data), and Nextcloud.
+
+It is intended for large organizations that use a hybrid setup, with some users
+on Microsoft products and some on open source alternatives. Since it is managed
+centrally by the IdP service and administrators, users on the two ecosystems
+can interact with each other's calendars as if they were on the same system,
+without having to manually share calendars with each user.
+
+
+## Installation and operation
+
+All you need is some kind of container runtime, such as [podman](https://podman.io/) or
+[docker](https://www.docker.com/).
+Then you run `docker compose up -d --build`. This will read configuration from
+the environment variables, and it will build the Dockerfile, which automatically
+fetches all the dependencies it needs.
+
+See `.env.example` for guidance on what configuration flags are supported.
+
+> [!caution]
+>
+> It's a bad idea to write secrets in a plain `.env` file. You should set secrets
+> dynamically in your deployment environment as environment variables, so your
+> secrets only exist ephemerally in RAM, and not in some persistent file.
+
+
 ## Running tests
 
 Unit tests do not require external dependencies, and can be run with a fake `.env` file.
@@ -25,7 +53,7 @@ You also need the following to exist in external systems:
     permissions:
     - `Group.Read.All`
     - `User.Read.All`
-    - `Calendars.ReadBasic.All`
+    - `Calendars.ReadWrite.All`
   - A group called `msync-microsoft_cloud-nextcloud`, with users:
     - upn: `laurits-testensen@magentakommune.dk`
   - A group called `msync-nextcloud-microsoft_cloud`, with users:
@@ -34,6 +62,7 @@ You also need the following to exist in external systems:
 Some tests require a postgres instance to be running, for these, the easiest thing is to
 run them inside a running docker compose stack. You can also spin up a local postgres instance
 if you want to debug.
+
 
 ## Development
 

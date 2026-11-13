@@ -1,0 +1,430 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1273.8132940875353" height="2040.6758434134545">
+  <desc>title%20Full%20sync%20on%20cold%20cache%5CnMicrosoft%20-%3E%20Nextcloud%0A%0Adatabase%20%22Nextcloud%22%20as%20nc%0A%0Aparticipant%20%22Nextcloud%5Cnconnector%5Cn%3AGroupware%22%20as%20ncc%0A%0Aparticipant%20%22Core%22%20as%20core%0A%0Aparticipant%20%22Microsoft%5Cnconnector%5Cn%3ADirectory%22%20as%20dir%0A%0Aparticipant%20%22Micorosft%5Cnconnector%5Cn%3AGroupware%22%20as%20msc%0A%0Adatabase%20%22Postgres%22%20as%20sql%0A%0Adatabase%20%22Microsoft%22%20as%20ms%0A%0A%0A%0Aactivate%20ncc%0A%0Aactivate%20msc%0A%0Anote%20over%20ncc%2C%20msc%3A%20since%20cache%20is%20cold%2C%20after%20startup%5Cnconnectors%20have%20nothing%20to%20do%0A%0Agroup%20refresh%20users%20%5Bperioidic%2C%20but%20always%20at%20startup%5D%0A%20%20%5B-%3E%20core%3A%20refresh%20users%0A%20%20activate%20core%0A%20%20%0A%20%20core%20-%3E%20dir%3A%20request%20groups%20%26%20members%0A%20%20activate%20dir%0A%20%20dir%20-%3E%20ms%3A%20request%20groups%20%26%20members%0A%20%20dir%20%3C--%20ms%3A%20%5Bgroups%5D%2C%20%5Bmembers%5D%0A%20%20core%20%3C--%20dir%3A%20%5Bgroups%5D%2C%20%5Bmembers%5D%0A%20%20deactivate%20dir%0A%20%20%0A%20%20note%20over%20core%3A%20figure%20out%20%22source%22%5Cnusers%20for%20Microsoft%0A%20%20%0A%20%20core%20-%3E%20msc%3A%20refresh%20users%5Cn%5Busers%5D%0A%20%20activate%20msc%0A%20%20deactivate%20core%0A%20%20%0A%20%20msc%20-%3E%3E%20sql%3A%20create%2Factivate%20users%5Cn%5Busers%5D%0A%0A%20%20deactivate%20msc%0Aend%0A%0Agroup%20Mcrosoft%20full%20sync%20%5Bperiodic%2C%20but%20always%20on%20new%20users%5D%0A%20%20msc%20-%3E%20sql%3A%20acquire%20job%5Cn(user)%0A%20%20msc%20%3C--%20sql%3A%20(user%20lock)%0A%20%20%0A%20%20msc%20-%3E%20ms%3A%20get%20all%20events%5Cn(user)%0A%20%20msc%20%3C--%20ms%3A%20%5Bevents%5D%0A%20%20%0A%20%20core%20%3C-%20msc%3A%20full%20sync%5Cn(user%2C%20%5Bevents%5D)%0A%20%20activate%20core%0A%20%20%0A%20%20note%20over%20core%3A%20figure%20out%20what%20%22mirror%22%5Cnsystem%20to%20send%20to%5Cn(e.g.%20Nextcloud)%0A%20%20%0A%20%20note%20over%20ncc%2C%20core%3A%20a%20user%20in%20Microsoft%2C%20is%20a%5Cnghost%20user%20in%20Nextcloud%0A%20%20%0A%20%20ncc%20%3C-%20core%3A%20request%20all%20events%5Cn(ghost)%0A%20%20activate%20ncc%0A%20%20%0A%20%20nc%20%3C-%20ncc%3A%20does%20ghost%20exist%3F%0A%20%20nc%20--%3E%20ncc%3A%20no%0A%20%20nc%20%3C-%20ncc%3A%20create%20ghost%0A%20%20nc%20--%3E%20ncc%3A%20ok%0A%20%20nc%20%3C-%20ncc%3A%20get%20all%20events%20for%20ghost%0A%20%20nc%20--%3E%20ncc%3A%20%5B%5D%0A%20%20%0A%20%20note%20over%20nc%2C%20core%3A%20since%20we%20just%20created%20the%20ghost%2C%20it%20has%20no%20events%5Cnhence%20the%20empty%20list%0A%20%20%0A%20%20ncc%20--%3E%20core%3A%20%5B%5D%0A%20%20deactivate%20ncc%0A%20%20%0A%20%20note%20over%20core%3A%20computes%20the%20diff%2C%20in%20this%20case%20its%20the%20full%5Cnlist%20of%20events%20from%20Microsoft%2C%20since%5CnNextcloud%20returned%20an%20empty%20list%0A%20%20ncc%20%3C-%20core%3A%20create%20events%5Cni.e.%20%22send_free_busy%22%5Cn(ghost%2C%20%5Bevents%5D)%0A%20%20activate%20ncc%0A%20%20nc%20%3C-%20ncc%3A%20create%20events%20for%20ghost%5Cn(ghost%2C%20%5Bevents%5D)%0A%20%20nc%20--%3E%20ncc%3A%20ok%0A%20%20ncc%20--%3E%20core%3A%20ok%0A%20%20deactivate%20ncc%0A%20%20%0A%20%20core%20--%3E%20msc%3A%20ok%0A%20%20deactivate%20core%0A%20%20%0A%20%20msc%20-%3E%3E%20sql%3A%20release%20job%5Cn(commit%2Fabort)%0Aend%0A%0A%0A</desc>
+  <defs />
+  <g>
+    <g>
+      <rect fill="white" stroke="none" x="0" y="0" width="1273" height="2040" />
+    </g>
+    <g />
+    <g>
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 98.0112198 140.76604421345456 L 98.0112198 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 140.76604421345456 L 316.4936091876465 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 533.387977929712 140.76604421345456 L 533.387977929712 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 789.3430243605958 140.76604421345456 L 789.3430243605958 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 916.3756759122423 140.76604421345456 L 916.3756759122423 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1126.4473891369494 140.76604421345456 L 1126.4473891369494 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1205.9593726875353 140.76604421345456 L 1205.9593726875353 2040.6758434134545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="11.598960923076923,5.0262164" />
+    </g>
+    <g>
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 75.99639196800001 78.26504327945455 C 75.99639196800001 65.12852409641454 120.026047632 65.12852409641454 120.026047632 78.26504327945455 L 120.026047632 109.93020659945455 C 120.026047632 123.06672578249456 75.99639196800001 123.06672578249456 75.99639196800001 109.93020659945455 Z" stroke-miterlimit="10" stroke-width="2.5633703640000003" />
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 75.99639196800001 78.26504327945455 C 75.99639196800001 91.40156246249455 120.026047632 91.40156246249455 120.026047632 78.26504327945455" stroke-miterlimit="10" stroke-width="2.5633703640000003" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="61.136219800000006" y="136.24244945345455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Nextcloud</text>
+      </g>
+      <path fill="none" stroke="none" />
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 257.558274042707 70.04717946545456 L 375.4289443325859 70.04717946545456 L 375.4289443325859 140.76604421345456 L 257.558274042707 140.76604421345456 L 257.558274042707 70.04717946545456 Z" stroke-miterlimit="10" stroke-width="2.4125838720000004" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="279.6186091876465" y="95.53009661345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Nextcloud</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="279.83527636293945" y="110.60874581345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">connector</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="273.91860842470703" y="125.68739501345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">:Groupware</text>
+      </g>
+      <path fill="none" stroke="none" />
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 500.0943111044746 100.20447786545456 L 566.6816447549493 100.20447786545456 L 566.6816447549493 140.76604421345456 L 500.0943111044746 140.76604421345456 L 500.0943111044746 100.20447786545456 Z" stroke-miterlimit="10" stroke-width="2.4125838720000004" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="516.4546454864746" y="125.68739501345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Core</text>
+      </g>
+      <path fill="none" stroke="none" />
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 736.3243571538887 70.04717946545456 L 842.3616915673028 70.04717946545456 L 842.3616915673028 140.76604421345456 L 736.3243571538887 140.76604421345456 L 736.3243571538887 70.04717946545456 Z" stroke-miterlimit="10" stroke-width="2.4125838720000004" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="756.0346900100099" y="95.53009661345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Microsoft</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="752.6846915358888" y="110.60874581345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">connector</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="753.1513587111817" y="125.68739501345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">:Directory</text>
+      </g>
+      <path fill="none" stroke="none" />
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 857.4403407673028 70.04717946545456 L 975.3110110571818 70.04717946545456 L 975.3110110571818 140.76604421345456 L 857.4403407673028 140.76604421345456 L 857.4403407673028 70.04717946545456 Z" stroke-miterlimit="10" stroke-width="2.4125838720000004" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="883.0673415616563" y="95.53009661345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Micorosft</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="879.7173430875353" y="110.60874581345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">connector</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="873.8006751493028" y="125.68739501345456" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">:Groupware</text>
+      </g>
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 1104.4325613049493 78.26504327945455 C 1104.4325613049493 65.12852409641454 1148.4622169689494 65.12852409641454 1148.4622169689494 78.26504327945455 L 1148.4622169689494 109.93020659945455 C 1148.4622169689494 123.06672578249456 1104.4325613049493 123.06672578249456 1104.4325613049493 109.93020659945455 Z" stroke-miterlimit="10" stroke-width="2.5633703640000003" />
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1104.4325613049493 78.26504327945455 C 1104.4325613049493 91.40156246249455 1148.4622169689494 91.40156246249455 1148.4622169689494 78.26504327945455" stroke-miterlimit="10" stroke-width="2.5633703640000003" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="1095.3223891369494" y="136.24244945345455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Postgres</text>
+      </g>
+      <g>
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 1183.9445448555352 78.26504327945455 C 1183.9445448555352 65.12852409641454 1227.9742005195353 65.12852409641454 1227.9742005195353 78.26504327945455 L 1227.9742005195353 109.93020659945455 C 1227.9742005195353 123.06672578249456 1183.9445448555352 123.06672578249456 1183.9445448555352 109.93020659945455 Z" stroke-miterlimit="10" stroke-width="2.5633703640000003" />
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1183.9445448555352 78.26504327945455 C 1183.9445448555352 91.40156246249455 1227.9742005195353 91.40156246249455 1227.9742005195353 78.26504327945455" stroke-miterlimit="10" stroke-width="2.5633703640000003" />
+      </g>
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="1172.6510383369493" y="136.24244945345455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Microsoft</text>
+      </g>
+    </g>
+    <g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 308.9542845876465 148.30536881345455 L 324.03293378764647 148.30536881345455 L 324.03293378764647 2025.5971942134545 L 308.9542845876465 2025.5971942134545 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 908.8363513122423 148.30536881345455 L 923.9150005122423 148.30536881345455 L 923.9150005122423 2025.5971942134545 L 908.8363513122423 2025.5971942134545 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 525.848653329712 303.6154555734546 L 540.9273025297119 303.6154555734546 L 540.9273025297119 602.1727097334548 L 525.848653329712 602.1727097334548 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 781.8036997605958 345.8356733334546 L 796.8823489605958 345.8356733334546 L 796.8823489605958 472.4963266134547 L 781.8036997605958 472.4963266134547 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 916.3756759122423 602.1727097334548 L 931.4543251122423 602.1727097334548 L 931.4543251122423 659.4715766934548 L 916.3756759122423 659.4715766934548 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 525.848653329712 979.1389397334549 L 540.9273025297119 979.1389397334549 L 540.9273025297119 1907.9837304534544 L 525.848653329712 1907.9837304534544 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 1196.2714882134549 L 331.57225838764646 1196.2714882134549 L 331.57225838764646 1564.1905286934546 L 316.4936091876465 1564.1905286934546 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 1724.0242102134546 L 331.57225838764646 1724.0242102134546 L 331.57225838764646 1865.7635126934545 L 316.4936091876465 1865.7635126934545 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="16pt" font-style="normal" font-weight="normal" text-decoration="normal" x="513.7083358764648" y="22.755052429090913" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Full sync on cold cache</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="16pt" font-style="normal" font-weight="normal" text-decoration="normal" x="515.1500015258789" y="44.68763308363637" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Microsoft -&gt; Nextcloud</text>
+      </g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 302.9228249076465 170.92334261345454 L 916.3756759122423 170.92334261345454 L 929.9464601922423 184.49412689345453 L 929.9464601922423 220.68288497345455 L 302.9228249076465 220.68288497345455 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 916.3756759122423 170.92334261345454 L 916.3756759122423 184.49412689345453 L 929.9464601922423 184.49412689345453" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="497.11797594685595" y="192.03345149345455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">since cache is cold, after startup</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="497.11797594685595" y="207.11210069345455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">connectors have nothing to do</text>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="227.89951130956305" y="284.0132116134546" width="100.20692911058593" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="230.16130868956304" y="297.5839958934546" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">refresh users</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 30.157298400000002 303.6154555734546 L 513.433898821712 303.6154555734546" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(525.848653329712,303.6154555734546) translate(-525.848653329712,-303.6154555734546)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 513.2831123297119 297.33268507345457 L 525.848653329712 303.6154555734546 L 513.2831123297119 309.8982260734546 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="558.770370749712" y="326.23342937345467" width="205.1902665129297" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="561.032168129712" y="339.80421365345467" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">request groups &amp; members</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 540.9273025297119 345.8356733334546 L 769.3889452525958 345.8356733334546" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(781.8036997605958,345.8356733334546) translate(-781.8036997605958,-345.8356733334546)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 769.2381587605958 339.5529028334546 L 781.8036997605958 345.8356733334546 L 769.2381587605958 352.11844383345465 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="898.8257304286237" y="368.45364713345464" width="205.1902665129297" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="901.0875278086237" y="382.02443141345464" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">request groups &amp; members</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 796.8823489605958 388.05589109345465 L 1193.5446181795353 388.05589109345465" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(1205.9593726875353,388.05589109345465) translate(-1205.9593726875353,-388.05589109345465)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 1193.3938316875353 381.7731205934546 L 1205.9593726875353 388.05589109345465 L 1193.3938316875353 394.3386615934547 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="923.2507306193586" y="410.6738648934547" width="156.34026040941407" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="925.5125279993586" y="424.2446491734547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[groups], [members]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1205.9593726875353 430.2761088534547 L 809.2971034685958 430.2761088534547" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(796.8823489605958,430.2761088534547) translate(-796.8823489605958,-430.2761088534547)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 809.4478899605958 423.99333835345465 L 796.8823489605958 430.2761088534547 L 809.4478899605958 436.5588793534547 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="583.1953709404469" y="452.8940826534547" width="156.34026040941407" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="585.4571683204468" y="466.4648669334547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[groups], [members]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 781.8036997605958 472.4963266134547 L 553.3420570377119 472.4963266134547" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(540.9273025297119,472.4963266134547) translate(-540.9273025297119,-472.4963266134547)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 553.492843529712 466.2135561134547 L 540.9273025297119 472.4963266134547 L 553.492843529712 478.7790971134547 Z" />
+        </g>
+      </g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 443.35287076632574 495.1143004134547 L 609.8523008130982 495.1143004134547 L 623.4230850930982 508.6850846934547 L 623.4230850930982 544.8738427734547 L 443.35287076632574 544.8738427734547 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 609.8523008130982 495.1143004134547 L 609.8523008130982 508.6850846934547 L 623.4230850930982 508.6850846934547" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="464.4629796463257" y="516.2244092934548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">figure out "source"</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="464.4629796463257" y="531.3030584934547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">users for Microsoft</text>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="678.5480246656841" y="567.4918165734548" width="100.20692911058593" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="678.5480246656841" y="582.5704657734548" width="55.52359476" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="680.8098220456841" y="581.0626008534548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">refresh users</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="680.8098220456841" y="596.1412500534548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[users]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 540.9273025297119 602.1727097334548 L 903.9609214042423 602.1727097334548" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(916.3756759122423,602.1727097334548) translate(-916.3756759122423,-602.1727097334548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 903.8101349122422 595.8899392334548 L 916.3756759122423 602.1727097334548 L 903.8101349122422 608.4554802334548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="949.2973933322423" y="624.7906835334549" width="159.30693521410157" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="949.2973933322423" y="639.8693327334548" width="55.52359476" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="951.5591907122423" y="638.3614678134549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">create/activate users</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="951.5591907122423" y="653.4401170134548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[users]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 931.4543251122423 659.4715766934548 L 1124.5625579869493 659.4715766934548" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(1126.4473891369494,659.4715766934548) translate(-1126.4473891369494,-659.4715766934548)">
+          <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1113.5287020141304 653.7084405528794 L 1125.034804645673 659.4715766934548 L 1113.5287020141304 665.2347128340302" stroke-miterlimit="10" stroke-width="1.2565541" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="982.2527314137121" y="745.4198771334549" width="85.85693063646484" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="982.2527314137121" y="760.4985263334548" width="47.89025964647461" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="984.5145287937121" y="758.9906614134549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">acquire job</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="984.5145287937121" y="774.0693106134548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(user)</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 923.9150005122423 780.1007702934548 L 1114.0326346289494 780.1007702934548" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(1126.4473891369494,780.1007702934548) translate(-1126.4473891369494,-780.1007702934548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 1113.8818481369494 773.8179997934549 L 1126.4473891369494 780.1007702934548 L 1113.8818481369494 786.3835407934548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="984.1360627125403" y="802.7187440934548" width="82.09026040941406" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="986.3978600925402" y="816.2895283734548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(user lock)</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1126.4473891369494 822.3209880534548 L 936.3297550202423 822.3209880534548" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(923.9150005122423,822.3209880534548) translate(-923.9150005122423,-822.3209880534548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 936.4805415122423 816.0382175534548 L 923.9150005122423 822.3209880534548 L 936.4805415122423 828.6037585534548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="1012.8003892198888" y="844.9389618534549" width="104.27359476" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="1012.8003892198888" y="860.0176110534549" width="47.89025964647461" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="1015.0621865998887" y="858.5097461334549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">get all events</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="1015.0621865998887" y="873.5883953334549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(user)</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 923.9150005122423 879.6198550134549 L 1193.5446181795353 879.6198550134549" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(1205.9593726875353,879.6198550134549) translate(-1205.9593726875353,-879.6198550134549)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 1193.3938316875353 873.3370845134549 L 1205.9593726875353 879.6198550134549 L 1193.3938316875353 885.9026255134548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="1032.3003892198888" y="902.2378288134548" width="65.27359476" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="1034.5621865998887" y="915.8086130934548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[events]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1205.9593726875353 921.8400727734548 L 936.3297550202423 921.8400727734548" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(923.9150005122423,921.8400727734548) translate(-923.9150005122423,-921.8400727734548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 936.4805415122423 915.5573022734549 L 923.9150005122423 921.8400727734548 L 936.4805415122423 928.1228432734548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="665.911695571861" y="944.4580465734549" width="65.37359323412109" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="665.911695571861" y="959.5366957734549" width="117.94025888353515" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="668.1734929518609" y="958.0288308534549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">full sync</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="668.1734929518609" y="973.1074800534549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(user, [events])</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 908.8363513122423 979.1389397334549 L 553.3420570377119 979.1389397334549" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(540.9273025297119,979.1389397334549) translate(-540.9273025297119,-979.1389397334549)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 553.492843529712 972.8561692334549 L 540.9273025297119 979.1389397334549 L 553.492843529712 985.4217102334549 Z" />
+        </g>
+      </g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 424.9778688589771 1001.756913533455 L 628.2273027204468 1001.756913533455 L 641.7980870004468 1015.327697813455 L 641.7980870004468 1066.595105093455 L 424.9778688589771 1066.595105093455 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 628.2273027204468 1001.756913533455 L 628.2273027204468 1015.327697813455 L 641.7980870004468 1015.327697813455" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="446.0879777389771" y="1022.8670224134551" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">figure out what "mirror"</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="446.0879777389771" y="1037.945671613455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">system to send to</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="446.0879777389771" y="1053.024320813455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(e.g. Nextcloud)</text>
+      </g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 302.9228249076465 1089.2130788934548 L 533.387977929712 1089.2130788934548 L 546.958762209712 1102.7838631734548 L 546.958762209712 1138.972621253455 L 302.9228249076465 1138.972621253455 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 533.387977929712 1089.2130788934548 L 533.387977929712 1102.7838631734548 L 546.958762209712 1102.7838631734548" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="337.9991260019165" y="1110.323187773455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">a user in Microsoft, is a</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="337.9991260019165" y="1125.401836973455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">ghost user in Nextcloud</text>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="360.76532412809325" y="1161.5905950534548" width="135.89026346117188" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="360.76532412809325" y="1176.6692442534547" width="56.85692682176758" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="363.0271215080933" y="1175.1613793334548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">request all events</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="363.0271215080933" y="1190.2400285334547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(ghost)</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 525.848653329712 1196.2714882134549 L 343.98701289564644 1196.2714882134549" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(331.57225838764646,1196.2714882134549) translate(-331.57225838764646,-1196.2714882134549)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 344.13779938764645 1189.988717713455 L 331.57225838764646 1196.2714882134549 L 344.13779938764645 1202.5542587134548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="141.14061673235355" y="1218.889462013455" width="132.2235917082422" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="143.40241411235354" y="1232.460246293455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">does ghost exist?</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 1238.4917059734548 L 110.42597430800001 1238.4917059734548" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(98.0112198,1238.4917059734548) translate(-98.0112198,-1238.4917059734548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 110.5767608 1232.2089354734549 L 98.0112198 1238.4917059734548 L 110.5767608 1244.7744764734548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="195.87395032000003" y="1261.109679773455" width="22.756928347646486" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="198.13574770000002" y="1274.680464053455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">no</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 98.0112198 1280.7119237334548 L 304.0788546796465 1280.7119237334548" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(316.4936091876465,1280.7119237334548) translate(-316.4936091876465,-1280.7119237334548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 303.9280681876465 1274.4291532334548 L 316.4936091876465 1280.7119237334548 L 303.9280681876465 1286.9946942334548 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="158.99061711382328" y="1303.3298975334549" width="96.52359476" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="161.25241449382327" y="1316.9006818134549" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">create ghost</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 1322.9321414934548 L 110.42597430800001 1322.9321414934548" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(98.0112198,1322.9321414934548) translate(-98.0112198,-1322.9321414934548)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 110.5767608 1316.6493709934548 L 98.0112198 1322.9321414934548 L 110.5767608 1329.2149119934547 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="196.27395089220462" y="1345.5501152934548" width="21.956927203237306" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="198.53574827220461" y="1359.1208995734548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">ok</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 98.0112198 1365.1523592534547 L 304.0788546796465 1365.1523592534547" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(316.4936091876465,1365.1523592534547) translate(-316.4936091876465,-1365.1523592534547)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 303.9280681876465 1358.8695887534548 L 316.4936091876465 1365.1523592534547 L 303.9280681876465 1371.4351297534547 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="119.95728428911623" y="1387.7703330534548" width="174.59026040941407" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="122.21908166911624" y="1401.3411173334548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">get all events for ghost</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 1407.3725770134547 L 110.42597430800001 1407.3725770134547" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(98.0112198,1407.3725770134547) translate(-98.0112198,-1407.3725770134547)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 110.5767608 1401.0898065134547 L 98.0112198 1407.3725770134547 L 110.5767608 1413.6553475134547 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="199.27395041536747" y="1429.9905508134548" width="15.956928156911621" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="201.53574779536746" y="1443.5613350934548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 98.0112198 1449.5927947734547 L 304.0788546796465 1449.5927947734547" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(316.4936091876465,1449.5927947734547) translate(-316.4936091876465,-1449.5927947734547)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 303.9280681876465 1443.3100242734547 L 316.4936091876465 1449.5927947734547 L 303.9280681876465 1455.8755652734546 Z" />
+        </g>
+      </g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 84.44043552000001 1472.2107685734545 L 533.387977929712 1472.2107685734545 L 546.958762209712 1485.7815528534545 L 546.958762209712 1521.9703109334546 L 84.44043552000001 1521.9703109334546 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 533.387977929712 1472.2107685734545 L 533.387977929712 1485.7815528534545 L 546.958762209712 1485.7815528534545" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="137.64126499110722" y="1493.3208774534546" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">since we just created the ghost, it has no events</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="137.64126499110722" y="1508.3995266534546" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">hence the empty list</text>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="420.7319917802234" y="1544.5882847334547" width="15.956928156911621" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="422.9937891602234" y="1558.1590690134547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[]</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 331.57225838764646 1564.1905286934546 L 513.433898821712 1564.1905286934546" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(525.848653329712,1564.1905286934546) translate(-525.848653329712,-1564.1905286934546)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 513.2831123297119 1557.9077581934546 L 525.848653329712 1564.1905286934546 L 513.2831123297119 1570.4732991934545 Z" />
+        </g>
+      </g>
+      <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 362.6445358435352 1586.8085024934546 L 690.5606357358887 1586.8085024934546 L 704.1314200158887 1600.3792867734546 L 704.1314200158887 1651.6466940534547 L 362.6445358435352 1651.6466940534547 Z" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 690.5606357358887 1586.8085024934546 L 690.5606357358887 1600.3792867734546 L 704.1314200158887 1600.3792867734546" stroke-miterlimit="10" stroke-width="1.2565541" />
+      <g>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="383.7546447235352" y="1607.9186113734547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">computes the diff, in this case its the full</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="383.7546447235352" y="1622.9972605734547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">list of events from Microsoft, since</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="383.7546447235352" y="1638.0759097734547" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Nextcloud returned an empty list</text>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="349.4153266076465" y="1674.2646678534545" width="104.94025888353515" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="349.4153266076465" y="1689.3433170534545" width="158.59026040941407" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="349.4153266076465" y="1704.4219662534545" width="126.90692605882812" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="351.6771239876465" y="1687.8354521334545" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">create events</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="351.6771239876465" y="1702.9141013334545" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">i.e. "send_free_busy"</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="351.6771239876465" y="1717.9927505334545" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(ghost, [events])</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 525.848653329712 1724.0242102134546 L 343.98701289564644 1724.0242102134546" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(331.57225838764646,1724.0242102134546) translate(-331.57225838764646,-1724.0242102134546)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 344.13779938764645 1717.7414397134546 L 331.57225838764646 1724.0242102134546 L 344.13779938764645 1730.3069807134545 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="119.62395032000002" y="1746.6421840134544" width="175.25693216234376" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="119.62395032000002" y="1761.7208332134544" width="126.90692605882812" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="121.88574770000002" y="1760.2129682934544" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">create events for ghost</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="121.88574770000002" y="1775.2916174934544" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(ghost, [events])</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 316.4936091876465 1781.3230771734545 L 110.42597430800001 1781.3230771734545" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(98.0112198,1781.3230771734545) translate(-98.0112198,-1781.3230771734545)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 110.5767608 1775.0403066734546 L 98.0112198 1781.3230771734545 L 110.5767608 1787.6058476734545 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="196.27395089220462" y="1803.9410509734546" width="21.956927203237306" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="198.53574827220461" y="1817.5118352534546" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">ok</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 98.0112198 1823.5432949334545 L 304.0788546796465 1823.5432949334545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(316.4936091876465,1823.5432949334545) translate(-316.4936091876465,-1823.5432949334545)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 303.9280681876465 1817.2605244334545 L 316.4936091876465 1823.5432949334545 L 303.9280681876465 1829.8260654334545 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="417.73199225706054" y="1846.1612687334546" width="21.956927203237306" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="419.99378963706056" y="1859.7320530134546" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">ok</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 331.57225838764646 1865.7635126934545 L 513.433898821712 1865.7635126934545" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(525.848653329712,1865.7635126934545) translate(-525.848653329712,-1865.7635126934545)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 513.2831123297119 1859.4807421934545 L 525.848653329712 1865.7635126934545 L 513.2831123297119 1872.0462831934544 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="713.9033633193585" y="1888.3814864934545" width="21.956927203237306" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="716.1651606993585" y="1901.9522707734545" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">ok</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 540.9273025297119 1907.9837304534544 L 896.4215968042423 1907.9837304534544" stroke-miterlimit="10" stroke-width="1.2565541" stroke-dasharray="6.03145968" />
+        <g transform="translate(908.8363513122423,1907.9837304534544) translate(-908.8363513122423,-1907.9837304534544)">
+          <path fill="black" stroke="none" paint-order="stroke fill markers" d=" M 896.2708103122422 1901.7009599534545 L 908.8363513122423 1907.9837304534544 L 896.2708103122422 1914.2665009534544 Z" />
+        </g>
+      </g>
+      <g>
+        <rect fill="white" stroke="none" x="967.5860653828283" y="1930.6017042534543" width="84.85693063646484" height="19.602243960000003" />
+        <rect fill="white" stroke="none" x="967.5860653828283" y="1945.6803534534542" width="115.19025888353515" height="19.602243960000003" />
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="969.8478627628283" y="1944.1724885334543" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">release job</text>
+        <text fill="black" stroke="none" font-family="sans-serif" font-size="11pt" font-style="normal" font-weight="normal" text-decoration="normal" x="969.8478627628283" y="1959.2511377334542" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">(commit/abort)</text>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 923.9150005122423 1965.2825974134544 L 1124.5625579869493 1965.2825974134544" stroke-miterlimit="10" stroke-width="1.2565541" />
+        <g transform="translate(1126.4473891369494,1965.2825974134544) translate(-1126.4473891369494,-1965.2825974134544)">
+          <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 1113.5287020141304 1959.519461272879 L 1125.034804645673 1965.2825974134544 L 1113.5287020141304 1971.0457335540298" stroke-miterlimit="10" stroke-width="1.2565541" />
+        </g>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 15.078649200000001 243.30085877345456 L 1258.7346448875353 243.30085877345456 L 1258.7346448875353 682.0895504934548 L 15.078649200000001 682.0895504934548 L 15.078649200000001 243.30085877345456 Z" stroke-miterlimit="10" stroke-width="2.154092742857143" />
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 15.078649200000001 243.30085877345456 L 15.078649200000001 261.39523781345457 L 133.4692811876465 261.39523781345457 L 142.51647070764648 252.34804829345455 L 142.51647070764648 243.30085877345456 L 15.078649200000001 243.30085877345456" stroke-miterlimit="10" stroke-width="2.154092742857143" />
+        <g>
+          <text fill="black" stroke="none" font-family="sans-serif" font-size="8.8pt" font-style="normal" font-weight="bold" text-decoration="normal" x="30.157298400000002" y="255.66535111745455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">refresh users</text>
+        </g>
+        <g>
+          <rect fill="white" stroke="none" x="155.3333225276465" y="244.80872369345457" width="223.54025735765626" height="15.681795168000003" />
+          <text fill="black" stroke="none" font-family="sans-serif" font-size="8.8pt" font-style="normal" font-weight="bold" text-decoration="normal" x="157.59511990764648" y="255.66535111745455" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[perioidic, but always at startup]</text>
+        </g>
+      </g>
+      <g>
+        <path fill="none" stroke="black" paint-order="fill stroke markers" d=" M 45.2359476 704.7075242934548 L 1258.7346448875353 704.7075242934548 L 1258.7346448875353 1987.9005712134544 L 45.2359476 1987.9005712134544 L 45.2359476 704.7075242934548 Z" stroke-miterlimit="10" stroke-width="2.154092742857143" />
+        <path fill="white" stroke="black" paint-order="fill stroke markers" d=" M 45.2359476 704.7075242934548 L 45.2359476 722.8019033334548 L 193.44324332971192 722.8019033334548 L 202.4904328497119 713.7547138134547 L 202.4904328497119 704.7075242934548 L 45.2359476 704.7075242934548" stroke-miterlimit="10" stroke-width="2.154092742857143" />
+        <g>
+          <text fill="black" stroke="none" font-family="sans-serif" font-size="8.8pt" font-style="normal" font-weight="bold" text-decoration="normal" x="60.314596800000004" y="717.0720166374548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">Mcrosoft full sync</text>
+        </g>
+        <g>
+          <rect fill="white" stroke="none" x="215.30728466971192" y="706.2153892134547" width="241.04025735765626" height="15.681795168000003" />
+          <text fill="black" stroke="none" font-family="sans-serif" font-size="8.8pt" font-style="normal" font-weight="bold" text-decoration="normal" x="217.5690820497119" y="717.0720166374548" text-anchor="start" dominant-baseline="alphabetic" xml:space="preserve">[periodic, but always on new users]</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

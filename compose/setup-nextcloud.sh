@@ -19,6 +19,13 @@ php /var/www/html/occ config:app:set firstrunwizard wizard_enabled --type=boolea
 php /var/www/html/occ config:app:set dav create_example_event --type=boolean --value=false
 php /var/www/html/occ config:app:set dav enableDefaultContact --type=boolean --value=false
 
+# Never in production: password hashes that are trivial to crack. Nextcloud checks
+# the password on every request without a session. Set before the accounts are
+# made, so they get the cheap hash too.
+php /var/www/html/occ config:system:set hashingThreads --type=integer --value=1
+php /var/www/html/occ config:system:set hashingMemoryCost --type=integer --value=8
+php /var/www/html/occ config:system:set hashingTimeCost --type=integer --value=1
+
 OC_PASS="$MSYNC_SERVICE_PASSWORD" php /var/www/html/occ user:add --password-from-env --display-name=msync msync
 OC_PASS="$MSYNC_MANAGER_PASSWORD" php /var/www/html/occ user:add --password-from-env --display-name=msync-manager msync-manager
 php /var/www/html/occ group:add msync-ghosts

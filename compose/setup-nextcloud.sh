@@ -10,6 +10,9 @@ set -eu
 php /var/www/html/occ config:system:set skeletondirectory --value=''
 php /var/www/html/occ config:system:set templatedirectory --value=''
 
+# Nextcloud asks haveibeenpwned.com about every new password.
+php /var/www/html/occ config:app:set password_policy enforceHaveIBeenPwned --type=boolean --value=false
+
 OC_PASS="$MSYNC_SERVICE_PASSWORD" php /var/www/html/occ user:add --password-from-env --display-name=msync msync
 OC_PASS="$MSYNC_MANAGER_PASSWORD" php /var/www/html/occ user:add --password-from-env --display-name=msync-manager msync-manager
 php /var/www/html/occ group:add msync-ghosts

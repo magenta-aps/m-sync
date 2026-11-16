@@ -6,6 +6,10 @@
 # requests: the accounts and groups the integration tests use.
 set -eu
 
+# Nextcloud copies 63 MB of demo files into every new account on its first login.
+php /var/www/html/occ config:system:set skeletondirectory --value=''
+php /var/www/html/occ config:system:set templatedirectory --value=''
+
 OC_PASS="$MSYNC_SERVICE_PASSWORD" php /var/www/html/occ user:add --password-from-env --display-name=msync msync
 OC_PASS="$MSYNC_MANAGER_PASSWORD" php /var/www/html/occ user:add --password-from-env --display-name=msync-manager msync-manager
 php /var/www/html/occ group:add msync-ghosts

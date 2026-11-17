@@ -92,10 +92,10 @@ def interval_to_graph_interval(
             # graph's full-day semantics are weird, timestamps should always
             # be in UTC, even though the timezone is ignored for full-day events
             # see https://github.com/microsoftgraph/msgraph-sdk-javascript/issues/1158#issuecomment-1411038157
-            start = full_day.start_datetime().replace(tzinfo=UTC)
-            graph_start = datetime_to_graph_datetime_timezone(start)
-            end = full_day.end_datetime().replace(tzinfo=UTC)
-            graph_end = datetime_to_graph_datetime_timezone(end)
+            # `start_datetime` and `end_datetime` always return datetimes in UTC
+            # for full-day events.
+            graph_start = datetime_to_graph_datetime_timezone(full_day.start_datetime())
+            graph_end = datetime_to_graph_datetime_timezone(full_day.end_datetime())
             return GraphInterval(
                 start=graph_start,
                 end=graph_end,

@@ -4,6 +4,7 @@
 
 import re
 import secrets
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Final, Literal
 
@@ -15,6 +16,7 @@ from ...config import NextcloudSettings
 from ...model import (
     NEXTCLOUD,
     CalendarEvent,
+    EventPatch,
     EventSource,
     FreeBusy,
     GroupwareSystemName,
@@ -82,6 +84,17 @@ class NextcloudGroupware:
     def get_webhooks_mount(self) -> Mount | None:
         return None
 
+    def get_events(
+        self,
+        user: User,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> AsyncIterator[CalendarEvent]:
+        _ = user
+        _ = window_start
+        _ = window_end
+        raise NotImplementedError
+
     async def update_user_list(self, users: set[User]) -> None:
         # only users Nextcloud is the source for
         _ = users
@@ -109,6 +122,21 @@ class NextcloudGroupware:
                 )
                 return
             await self._client.calendars.put_object(calendar_href, name, busy_block)
+
+    async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
+        _ = user
+        _ = events
+        raise NotImplementedError
+
+    async def delete_events(self, user: User, events: list[EventSource]) -> None:
+        _ = user
+        _ = events
+        raise NotImplementedError
+
+    async def update_events(self, user: User, patches: list[EventPatch]) -> None:
+        _ = user
+        _ = patches
+        raise NotImplementedError
 
 
 async def _set_up_ghost(client: NextcloudClient, ghost_group: str, user: User) -> None:

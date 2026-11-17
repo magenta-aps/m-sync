@@ -4,6 +4,7 @@
 
 import asyncio
 from asyncio import Event, TaskGroup
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
@@ -11,7 +12,14 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.routing import Mount
 
-from ...model import FreeBusy, GroupwareSystemName, User
+from ...model import (
+    CalendarEvent,
+    EventPatch,
+    EventSource,
+    FreeBusy,
+    GroupwareSystemName,
+    User,
+)
 from ...ms_graph import MsGraph
 from .database import (
     UserLock,
@@ -64,6 +72,17 @@ class MicrosoftCloudGroupware:
     def get_webhooks_mount(self) -> Mount:
         return Mount("/ms_cloud", routes=[])
 
+    def get_events(
+        self,
+        user: User,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> AsyncIterator[CalendarEvent]:
+        _ = user
+        _ = window_start
+        _ = window_end
+        raise NotImplementedError
+
     async def update_user_list(self, users: set[User]) -> None:
         async with self._database() as session:
             await update_user_status(session, {user.id for user in users})
@@ -72,6 +91,21 @@ class MicrosoftCloudGroupware:
     async def send_free_busy(self, user: User, update: FreeBusy) -> None:
         _ = user
         _ = update
+        raise NotImplementedError
+
+    async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
+        _ = user
+        _ = events
+        raise NotImplementedError
+
+    async def delete_events(self, user: User, events: list[EventSource]) -> None:
+        _ = user
+        _ = events
+        raise NotImplementedError
+
+    async def update_events(self, user: User, patches: list[EventPatch]) -> None:
+        _ = user
+        _ = patches
         raise NotImplementedError
 
     async def _worker(self, worker_id: int, stop: Event | None) -> None:

@@ -9,7 +9,15 @@ from typing import override
 import structlog
 from starlette.routing import Mount
 
-from sync.model import CalendarEvent, FreeBusy, Group, GroupwareSystemName, User
+from sync.model import (
+    CalendarEvent,
+    EventPatch,
+    EventSource,
+    FreeBusy,
+    Group,
+    GroupwareSystemName,
+    User,
+)
 from sync.ms_graph import DeltaLink, MsGraph
 
 logger = structlog.stdlib.get_logger()
@@ -44,12 +52,38 @@ class DummyGroupware:
     def get_webhooks_mount(self) -> Mount | None:
         raise NotImplementedError
 
+    def get_events(
+        self,
+        user: User,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> AsyncIterator[CalendarEvent]:
+        _ = user
+        _ = window_start
+        _ = window_end
+        raise NotImplementedError
+
     async def update_user_list(self, users: set[User]) -> None:
         logger.info("received update user list", users=users)
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None:
         _ = user
         _ = update
+        raise NotImplementedError
+
+    async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
+        _ = user
+        _ = events
+        raise NotImplementedError
+
+    async def delete_events(self, user: User, events: list[EventSource]) -> None:
+        _ = user
+        _ = events
+        raise NotImplementedError
+
+    async def update_events(self, user: User, patches: list[EventPatch]) -> None:
+        _ = user
+        _ = patches
         raise NotImplementedError
 
 

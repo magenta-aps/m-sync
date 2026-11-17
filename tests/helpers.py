@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import override
 
@@ -24,21 +24,37 @@ logger = structlog.stdlib.get_logger()
 
 
 class DummyDirectoryService:
-    async def list_groups(self) -> AsyncIterator[Group]:
-        return
-        yield  # pyright: ignore[reportUnreachable]
+    # map name -> id
+    group_ids: dict[str, str]
 
-    def list_group_members(
+    # map id -> members
+    group_members: dict[str, list[User]]
+
+    def __init__(self):
+        self.group_ids = {}
+        self.group_members = {}
+
+    async def list_groups(self) -> AsyncIterator[Group]:
+        for k, v in self.group_ids.items():
+            yield Group(name=k, id=v)
+
+    async def list_group_members(
         self,
         group: Group,
     ) -> AsyncIterator[User]:
-        _ = group
-        raise NotImplementedError
+        assert group.id is not None
+        members = self.group_members[group.id]
+        for member in members:
+            yield member
 
 
 @dataclass(frozen=True)
 class DummyGroupware:
     name: GroupwareSystemName
+    get_events_returns: dict[User, list[CalendarEvent]] = field(default_factory=dict)
+    created_events: dict[User, list[CalendarEvent]] = field(default_factory=dict)
+    deleted_events: dict[User, list[EventSource]] = field(default_factory=dict)
+    updated_events: dict[User, list[EventPatch]] = field(default_factory=dict)
 
     async def setup(self) -> None:
         """There is nothing to set up for the dummy."""
@@ -52,16 +68,22 @@ class DummyGroupware:
     def get_webhooks_mount(self) -> Mount | None:
         raise NotImplementedError
 
-    def get_events(
+    async def get_events(
         self,
         user: User,
         window_start: datetime,
         window_end: datetime,
     ) -> AsyncIterator[CalendarEvent]:
-        _ = user
-        _ = window_start
-        _ = window_end
-        raise NotImplementedError
+        events = self.get_events_returns.get(user)
+        if events is None:
+            return
+        for event in events:
+            # like a real connector querying its backing system, only yield
+            # events that overlap the sync window
+            start = event.interval.start_datetime()
+            end = event.interval.end_datetime()
+            if start < window_end and end > window_start:
+                yield event
 
     async def update_user_list(self, users: set[User]) -> None:
         logger.info("received update user list", users=users)
@@ -72,19 +94,22 @@ class DummyGroupware:
         raise NotImplementedError
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
-        _ = user
-        _ = events
-        raise NotImplementedError
+        if user not in self.created_events:
+            self.created_events[user] = events
+        else:
+            self.created_events[user].extend(events)
 
     async def delete_events(self, user: User, events: list[EventSource]) -> None:
-        _ = user
-        _ = events
-        raise NotImplementedError
+        if user not in self.deleted_events:
+            self.deleted_events[user] = events
+        else:
+            self.deleted_events[user].extend(events)
 
     async def update_events(self, user: User, patches: list[EventPatch]) -> None:
-        _ = user
-        _ = patches
-        raise NotImplementedError
+        if user not in self.updated_events:
+            self.updated_events[user] = patches
+        else:
+            self.updated_events[user].extend(patches)
 
 
 class DummyMsGraph(MsGraph):

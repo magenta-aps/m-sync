@@ -12,7 +12,14 @@ from pydantic import SecretStr
 from starlette.routing import Mount
 
 from ...config import NextcloudSettings
-from ...model import NEXTCLOUD, CalendarEvent, FreeBusy, GroupwareSystemName, User
+from ...model import (
+    NEXTCLOUD,
+    CalendarEvent,
+    EventSource,
+    FreeBusy,
+    GroupwareSystemName,
+    User,
+)
 from ...nextcloud.ical import make_busy_block_name, render_busy_block
 from .calendars import get_ghost_calendar_href
 from .client import NextcloudClient
@@ -83,11 +90,12 @@ class NextcloudGroupware:
         """Write the update as a busy block in the user's ghost calendar. A write
         that finds no calendar sets the ghost up and writes once more."""
         event = CalendarEvent(
-            original_id=str(update.source.original_id),
+            source=EventSource(system=NEXTCLOUD, original_id=update.source.original_id),
             interval=update.interval,
             free_busy_status=update.free_busy_status,
         )
-        name = make_busy_block_name(event.original_id)
+        assert event.source is not None
+        name = make_busy_block_name(event.source)
         busy_block = render_busy_block(event, update.timestamp)
         calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
         try:

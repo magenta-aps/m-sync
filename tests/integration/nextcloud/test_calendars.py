@@ -18,7 +18,13 @@ from sync.groupware.nextcloud.connection import (
     UnknownAddressError,
 )
 from sync.groupware.nextcloud.dav import XML_CONTENT_TYPE, DavClient
-from sync.model import CalendarEvent, DatetimeInterval, FreeBusyStatus
+from sync.model import (
+    NEXTCLOUD,
+    CalendarEvent,
+    DatetimeInterval,
+    EventSource,
+    FreeBusyStatus,
+)
 from sync.nextcloud.ical import make_busy_block_name, read_busy_block, render_busy_block
 from sync.nextcloud.spans import BusyPeriod
 
@@ -30,11 +36,13 @@ MONDAY_MIDNIGHT = datetime(2030, 1, 7, tzinfo=UTC)
 TUESDAY_MIDNIGHT = datetime(2030, 1, 8, tzinfo=UTC)
 
 PLANNING = CalendarEvent(
-    original_id="planning",
+    source=EventSource(system=NEXTCLOUD, original_id="planning"),
     interval=DatetimeInterval(start=MONDAY_NINE, end=MONDAY_TEN),
     free_busy_status=FreeBusyStatus.BUSY,
 )
-PLANNING_BUSY_BLOCK_NAME = make_busy_block_name("planning")
+PLANNING_BUSY_BLOCK_NAME = make_busy_block_name(
+    EventSource(system=NEXTCLOUD, original_id="planning")
+)
 PLANNING_BUSY_BLOCK = render_busy_block(PLANNING, MONDAY_MIDNIGHT)
 
 
@@ -146,7 +154,7 @@ async def test_busy_time_is_read_with_its_status(
         ghost, ghost_password
     )
     lunch = CalendarEvent(
-        original_id="lunch",
+        source=EventSource(system=NEXTCLOUD, original_id="lunch"),
         interval=DatetimeInterval(start=MONDAY_TEN, end=MONDAY_ELEVEN),
         free_busy_status=FreeBusyStatus.TENTATIVE,
     )
@@ -155,7 +163,7 @@ async def test_busy_time_is_read_with_its_status(
     )
     await nextcloud.calendars.put_object(
         calendar_href,
-        make_busy_block_name("lunch"),
+        make_busy_block_name(EventSource(system=NEXTCLOUD, original_id="lunch")),
         render_busy_block(lunch, MONDAY_MIDNIGHT),
     )
 

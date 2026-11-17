@@ -3,13 +3,14 @@
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime
 from typing import override
 
 import structlog
 from starlette.routing import Mount
 
-from sync.model import FreeBusy, Group, GroupwareSystemName, User
-from sync.ms_graph import MsGraph
+from sync.model import CalendarEvent, FreeBusy, Group, GroupwareSystemName, User
+from sync.ms_graph import DeltaLink, MsGraph
 
 logger = structlog.stdlib.get_logger()
 
@@ -80,3 +81,24 @@ class DummyMsGraph(MsGraph):
         members = self.group_members[group_id]
         for member in members:
             yield member
+
+    @override
+    def list_calendar_events(
+        self,
+        user_id: str,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> AsyncIterator[tuple[str, CalendarEvent] | DeltaLink]:
+        raise NotImplementedError()
+
+    @override
+    async def create_event(
+        self,
+        user_id: str,
+        event: CalendarEvent,
+    ) -> str:
+        raise NotImplementedError()
+
+    @override
+    async def delete_event(self, user_id: str, event_id: str) -> None:
+        raise NotImplementedError()

@@ -21,8 +21,10 @@ from icalendar.prop import vPeriod
 from icalendar.tools import to_datetime
 
 from ..model import (
+    NEXTCLOUD,
     CalendarEvent,
     DatetimeInterval,
+    EventSource,
     FreeBusyStatus,
     FullDayInterval,
     Interval,
@@ -174,7 +176,7 @@ def _make_calendar_event(
             end=end,
         )
     return CalendarEvent(
-        original_id=original_id,
+        source=EventSource(original_id=original_id, system=NEXTCLOUD),
         interval=interval,
         free_busy_status=_read_free_busy_status(event),
     )
@@ -215,21 +217,24 @@ def _keep_timing(event: Event) -> Event:
 
 # A busy block is what we write to a ghost's calendar so its free/busy shows
 # another system's busy time. There is one per source event with nothing private.
-def make_busy_block_name(original_id: str) -> str:
-    """The object name of the busy block for one source event. The id is hashed
-    because it can contain "/" and be longer than the 255 characters Nextcloud
-    allows for an object name. A mirrored user has one source, so the id alone
-    is unique in its ghost calendar."""
-    name_hash = hashlib.sha256(original_id.encode()).hexdigest()[:_NAME_HASH_LENGTH]
+def make_busy_block_name(source: EventSource) -> str:
+    """The object name of the busy block for one source event. The source id is
+    hashed because it can contain "/" and be longer than the 255 characters
+    Nextcloud allows for an object name."""
+    hash_input = f"{source.system}:{source.original_id}".encode()
+    name_hash = hashlib.sha256(hash_input).hexdigest()[:_NAME_HASH_LENGTH]
     return f"{_BUSY_BLOCK_PREFIX}{name_hash}.ics"
 
 
 def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     """A busy block that says when the source event is and whether it takes
     time. `stamp` is the time of the source change."""
+    assert event.source is not None
     start, end = _make_busy_block_bounds(event.interval)
     if end < start:
-        logger.warning("event ends before it starts", original_id=event.original_id)
+        logger.warning(
+            "event ends before it starts", original_id=event.source.original_id
+        )
     # Nextcloud refuses an end equal to the start, so an event that takes no time
     # has no end. A date without an end is a whole day, so it is transparent.
     takes_time = end > start
@@ -238,7 +243,7 @@ def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     busy_event = Event.new(
         # The UID must equal the name. Nextcloud purges a trashed object with
         # the same UID on PUT, which is what lets the same busy block come back.
-        uid=make_busy_block_name(event.original_id).removesuffix(".ics"),
+        uid=make_busy_block_name(event.source).removesuffix(".ics"),
         stamp=stamp.astimezone(UTC),
         start=start,
         end=end if takes_time else None,

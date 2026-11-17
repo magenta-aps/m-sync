@@ -30,8 +30,8 @@ class AppState(TypedDict):
 Request = starlette.requests.Request[AppState]
 
 
-class UpdateSource(BaseModel):
-    """Records provenance information for an update."""
+class EventSource(BaseModel):
+    """Records provenance information for a calendar event."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     system: GroupwareSystemName
@@ -119,7 +119,7 @@ class UpdateBase(BaseModel):
     """Base class with fields common to all kinds of updates."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    source: UpdateSource
+    source: EventSource
     timestamp: datetime
 
     @model_validator(mode="after")
@@ -157,18 +157,15 @@ class FreeBusy(UpdateBase):
 
 
 class CalendarEvent(BaseModel):
-    """An event as read from a calendar: when it is and whether it takes time,
-    and nothing else. One occurrence of a series is an event of its own."""
+    """A full calendar event."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    original_id: str = Field(
-        description="""\
-            The ID the source system knows the event by, used as
-            `UpdateSource.original_id`. In CalDAV, this is the UID, or
-            `<UID>/<RECURRENCE-ID>` for one occurrence of a series.
-        """
-    )
+    source: EventSource | None
+    """The source points to the system that owns the original copy. If it isn't
+    set, this calendar event is not a copy."""
+
     interval: Interval
+    subject: str | None = None
     free_busy_status: FreeBusyStatus
 
 
@@ -230,3 +227,7 @@ class Group(BaseModel):
             GroupwareSystemName(source),
             GroupwareSystemName(mirror),
         )
+
+
+type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
+"""An arbitrary JSON value."""

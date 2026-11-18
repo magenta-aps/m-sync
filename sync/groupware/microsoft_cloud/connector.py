@@ -16,7 +16,6 @@ from ...model import (
     CalendarEvent,
     EventPatch,
     EventSource,
-    FreeBusy,
     GroupwareSystemName,
     User,
 )
@@ -87,11 +86,6 @@ class MicrosoftCloudGroupware:
         async with self._database() as session:
             await update_user_status(session, {user.id for user in users})
             await session.commit()
-
-    async def send_free_busy(self, user: User, update: FreeBusy) -> None:
-        _ = user
-        _ = update
-        raise NotImplementedError
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
         _ = user

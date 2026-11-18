@@ -121,23 +121,6 @@ class FreeBusyStatus(StrEnum):
     TENTATIVE = "tentative"
 
 
-class FreeBusy(BaseModel):
-    """Sent to signal that the free/busy status in a specific interval should be
-    changed on the target calendar."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    source: EventSource
-    timestamp: datetime
-    interval: Interval
-    free_busy_status: FreeBusyStatus
-
-    @model_validator(mode="after")
-    def _check_datetime_timezone(self) -> Self:
-        if self.timestamp.tzinfo is None:
-            raise ValueError("event timestamps missing a timezone")
-        return self
-
-
 class CalendarEvent(BaseModel):
     """A full calendar event."""
 

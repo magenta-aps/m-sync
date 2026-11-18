@@ -13,7 +13,6 @@ from sync.model import (
     CalendarEvent,
     EventPatch,
     EventSource,
-    FreeBusy,
     Group,
     GroupwareSystemName,
     User,
@@ -87,11 +86,6 @@ class DummyGroupware:
 
     async def update_user_list(self, users: set[User]) -> None:
         logger.info("received update user list", users=users)
-
-    async def send_free_busy(self, user: User, update: FreeBusy) -> None:
-        _ = user
-        _ = update
-        raise NotImplementedError
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
         if user not in self.created_events:

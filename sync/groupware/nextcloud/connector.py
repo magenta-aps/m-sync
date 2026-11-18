@@ -18,7 +18,6 @@ from ...model import (
     CalendarEvent,
     EventPatch,
     EventSource,
-    FreeBusy,
     GroupwareSystemName,
     User,
 )
@@ -119,15 +118,6 @@ class NextcloudGroupware:
     async def update_user_list(self, users: set[User]) -> None:
         # only users Nextcloud is the source for
         _ = users
-
-    async def send_free_busy(self, user: User, update: FreeBusy) -> None:
-        """Write the update as a busy block in the user's ghost calendar."""
-        event = CalendarEvent(
-            source=update.source,
-            interval=update.interval,
-            free_busy_status=update.free_busy_status,
-        )
-        await self.create_events(user, [event])
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
         """Write each event as a busy block in the user's ghost calendar. A

@@ -115,9 +115,13 @@ class DummyMsGraph(MsGraph):
     # map id -> members
     group_members: dict[str, list[User]]
 
+    # map user_id -> calendar events, keyed by the ID Microsoft would assign
+    calendar_events: dict[str, list[tuple[str, CalendarEvent]]]
+
     def __init__(self):
         self.group_ids = {}
         self.group_members = {}
+        self.calendar_events = {}
 
     @override
     async def list_groups(self, prefix: str) -> AsyncIterator[Group]:
@@ -136,13 +140,20 @@ class DummyMsGraph(MsGraph):
             yield member
 
     @override
-    def list_calendar_events(
+    async def list_calendar_events(
         self,
         user_id: str,
         window_start: datetime,
         window_end: datetime,
     ) -> AsyncIterator[tuple[str, CalendarEvent] | DeltaLink]:
-        raise NotImplementedError()
+        for event_id, event in self.calendar_events.get(user_id, []):
+            start = event.interval.start_datetime()
+            end = event.interval.end_datetime()
+            if start < window_end and end > window_start:
+                yield (event_id, event)
+        # since DeltaLink is used to signal the end of the listing, we have to
+        # return a fake one
+        yield DeltaLink("https://example.com/delta-1234")
 
     @override
     async def create_event(

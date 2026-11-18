@@ -38,9 +38,9 @@ async def test_refresh_user_list_from_directory(
     client.group_members["group-1"] = [User(name="genurshk", id="user-1")]
 
     directory = MicrosoftCloudDirectory(client)
-    groupware = MicrosoftCloudGroupware(client, database, settings)
-
     core = Core(directory)
+    groupware = MicrosoftCloudGroupware(client, database, settings, core)
+
     core.add_groupware(groupware)
     core.add_groupware(DummyGroupware(GroupwareSystemName("dummy")))
 

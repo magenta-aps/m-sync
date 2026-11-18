@@ -12,6 +12,8 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.routing import Mount
 
+from sync.core import Core
+
 from ...config import MicrosoftCloudSettings, Settings
 from ...model import (
     CalendarEvent,
@@ -20,11 +22,12 @@ from ...model import (
     GroupwareSystemName,
     User,
 )
-from ...ms_graph import MsGraph
+from ...ms_graph import DeltaLink, MsGraph
 from .database import (
     UserLock,
     abort_user_job,
     acquire_user_job,
+    commit_user_job,
     create_schema_if_not_exists,
     update_user_status,
 )
@@ -44,17 +47,20 @@ class MicrosoftCloudGroupware:
     _client: MsGraph
     _database: async_sessionmaker[AsyncSession]
     _settings: MicrosoftCloudSettings
+    _core: Core
 
     def __init__(
         self,
         client: MsGraph,
         database: async_sessionmaker[AsyncSession],
         settings: Settings,
+        core: Core,
     ) -> None:
         self._client = client
         self._database = database
         assert settings.microsoft_cloud is not None
         self._settings = settings.microsoft_cloud
+        self._core = core
 
     async def setup(self) -> None:
         async with self._database() as session:
@@ -120,15 +126,47 @@ class MicrosoftCloudGroupware:
         logger.info("stop signal received", worker_id=worker_id)
 
     async def _full_sync(self, worker_id: int, lock: UserLock):
+        # FIXME: Der mangler noget error-handling her, men tænker jeg vil fixe
+        #   når vi kan teste ordenligt. F.eks. hvis Graph API returner en internal
+        #   server error, så vil det her bare crashe.
+
         logger.debug(
             "performing full sync",
             worker_id=worker_id,
             user_id=lock.row_id,
             lock_id=lock.lock_id,
         )
-        # TODO: actual implementation here
+
+        now = datetime.now(UTC)
+        window_start = now - timedelta(days=7)
+        window_end = now + timedelta(days=30 * 4)  # 4 months
+        delta_link = None
+        events: list[CalendarEvent] = []
+        async for item in self._client.list_calendar_events(
+            user_id=lock.row_id,
+            window_start=window_start,
+            window_end=window_end,
+        ):
+            if isinstance(item, DeltaLink):
+                delta_link = item
+                break
+            _, event = item
+            events.append(event)
+        assert delta_link is not None
+
+        user = User(id=lock.row_id)
+        await self._core.full_sync(
+            self.get_groupware_system_name(), user, events, window_start, window_end
+        )
+
         async with self._database() as session:
-            await abort_user_job(session, lock)
+            await commit_user_job(
+                session,
+                lock,
+                new_delta_link=delta_link,
+                polling_period=self._settings.full_sync_period,
+                full_sync=True,
+            )
             await session.commit()
 
     async def _delta_sync(self, worker_id: int, lock: UserLock):

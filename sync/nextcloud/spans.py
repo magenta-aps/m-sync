@@ -20,7 +20,7 @@ class Span:
 
 @dataclass(frozen=True)
 class BusyPeriod:
-    """Busy time as Nextcloud shows it: a busy block, or a free/busy period."""
+    """Busy time as Nextcloud shows it: a period in a free/busy answer."""
 
     start: datetime
     end: datetime

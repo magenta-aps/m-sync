@@ -229,21 +229,68 @@ def test_a_calendar_read_from_text_gives_the_same_events() -> None:
     assert read_in_window(from_text) == read_in_window(calendar)
 
 
-@pytest.mark.parametrize("status", [FreeBusyStatus.BUSY, FreeBusyStatus.TENTATIVE])
-def test_a_written_busy_block_reads_back(status: FreeBusyStatus) -> None:
-    t0 = datetime(2026, 10, 1, tzinfo=UTC)
-    t1 = datetime(2026, 10, 2, tzinfo=UTC)
+@pytest.mark.parametrize(
+    ("interval", "status"),
+    [
+        (
+            DatetimeInterval(
+                start=datetime(2026, 10, 1, 9, tzinfo=UTC),
+                end=datetime(2026, 10, 1, 10, tzinfo=UTC),
+            ),
+            FreeBusyStatus.BUSY,
+        ),
+        (
+            DatetimeInterval(
+                start=datetime(2026, 10, 1, 9, tzinfo=DENMARK),
+                end=datetime(2026, 10, 1, 10, tzinfo=DENMARK),
+            ),
+            FreeBusyStatus.TENTATIVE,
+        ),
+        (
+            DatetimeInterval(
+                start=datetime(2026, 10, 1, 9, tzinfo=UTC),
+                end=datetime(2026, 10, 1, 10, tzinfo=UTC),
+            ),
+            FreeBusyStatus.FREE,
+        ),
+        (
+            FullDayInterval(start=date(2026, 10, 1), end=date(2026, 10, 3)),
+            FreeBusyStatus.BUSY,
+        ),
+        (
+            DatetimeInterval(
+                start=datetime(2026, 10, 1, 9, tzinfo=UTC),
+                end=datetime(2026, 10, 1, 10, tzinfo=UTC),
+            ),
+            FreeBusyStatus.UNKNOWN,
+        ),
+        (
+            DatetimeInterval(
+                start=datetime(2026, 10, 1, 9, tzinfo=UTC),
+                end=datetime(2026, 10, 1, 9, tzinfo=UTC),
+            ),
+            FreeBusyStatus.BUSY,
+        ),
+        (
+            FullDayInterval(start=date(2026, 10, 1), end=date(2026, 10, 1)),
+            FreeBusyStatus.BUSY,
+        ),
+    ],
+)
+def test_a_written_busy_block_reads_back_as_its_event(
+    interval: Interval, status: FreeBusyStatus
+) -> None:
     written_at = datetime(2026, 9, 30, 12, tzinfo=UTC)
     planning = CalendarEvent(
-        source=EventSource(system=NEXTCLOUD, original_id="planning"),
-        interval=DatetimeInterval(start=t0, end=t1),
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="AAMkAD/planning+1="),
+        interval=interval,
         free_busy_status=status,
     )
     busy_block = render_busy_block(planning, written_at)
 
     calendar = Calendar.from_ical(busy_block.to_ical())
 
-    assert read_busy_block(calendar) == BusyPeriod(start=t0, end=t1, status=status)
+    assert read_busy_block(calendar) == planning
     assert read_busy_block_timestamp(calendar) == written_at
 
 
@@ -262,13 +309,100 @@ def test_the_same_update_gives_the_same_bytes() -> None:
     assert first.to_ical() == second.to_ical()
 
 
-def test_an_event_with_a_date_is_not_a_busy_block() -> None:
+def test_an_event_without_a_source_is_not_a_busy_block() -> None:
     written_at = datetime(2026, 9, 1, tzinfo=UTC)
-    t0 = date(2026, 10, 1)
-    t1 = date(2026, 10, 2)
-    all_day = make_event(start=t0, end=t1, written_at=written_at)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    meeting = make_event(start=t0, end=t1, written_at=written_at)
 
-    assert read_busy_block(make_calendar(all_day)) is None
+    assert read_busy_block(make_calendar(meeting)) is None
+
+
+def test_a_busy_block_without_the_status_property_reads_its_own_status() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.TENTATIVE,
+    )
+    busy_block = render_busy_block(planning, written_at)
+    del one(busy_block.events)["X-MSYNC-FREE-BUSY-STATUS"]
+
+    assert read_busy_block(busy_block) == planning
+
+
+def test_a_status_property_that_is_no_free_busy_status_is_ignored() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.TENTATIVE,
+    )
+    busy_block = render_busy_block(planning, written_at)
+    one(busy_block.events)["X-MSYNC-FREE-BUSY-STATUS"] = "out-of-office"
+
+    assert read_busy_block(busy_block) == planning
+
+
+def test_a_busy_block_time_without_a_timezone_is_read_as_utc() -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    busy_block = render_busy_block(planning, written_at)
+    busy_event = one(busy_block.events)
+    busy_event.start = datetime.fromisoformat("2026-10-01T09:00:00")
+    busy_event.end = datetime.fromisoformat("2026-10-01T10:00:00")
+
+    assert read_busy_block(busy_block) == planning
+
+
+@pytest.mark.parametrize(
+    "missing_property", ["X-MSYNC-SOURCE-SYSTEM", "X-MSYNC-SOURCE-ORIGINAL-ID"]
+)
+def test_a_busy_block_missing_a_source_property_reads_as_none(
+    missing_property: str,
+) -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    busy_block = render_busy_block(planning, written_at)
+    del one(busy_block.events)[missing_property]
+
+    assert read_busy_block(busy_block) is None
+
+
+@pytest.mark.parametrize(
+    "repeated_property", ["X-MSYNC-SOURCE-SYSTEM", "X-MSYNC-SOURCE-ORIGINAL-ID"]
+)
+def test_a_busy_block_with_a_repeated_source_property_reads_as_none(
+    repeated_property: str,
+) -> None:
+    written_at = datetime(2026, 9, 1, tzinfo=UTC)
+    t0 = datetime(2026, 10, 1, 9, tzinfo=UTC)
+    t1 = datetime(2026, 10, 1, 10, tzinfo=UTC)
+    planning = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
+        interval=DatetimeInterval(start=t0, end=t1),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    busy_block = render_busy_block(planning, written_at)
+    one(busy_block.events).add(repeated_property, "lunch")  # pyright: ignore[reportUnknownMemberType]
+
+    assert read_busy_block(busy_block) is None
 
 
 def test_the_name_is_safe_and_the_same_for_the_same_source() -> None:
@@ -311,7 +445,14 @@ def test_a_busy_block_is_named_by_its_uid_and_shows_nothing_private() -> None:
         "SUMMARY",
         "TRANSP",
         "STATUS",
+        "X-MSYNC-SOURCE-SYSTEM",
+        "X-MSYNC-SOURCE-ORIGINAL-ID",
+        "X-MSYNC-FREE-BUSY-STATUS",
     }
+    assert busy_event["X-MSYNC-SOURCE-SYSTEM"] == "nextcloud"
+    assert (
+        busy_event["X-MSYNC-SOURCE-ORIGINAL-ID"] == "weekly-planning/20261001T090000Z"
+    )
 
 
 @pytest.mark.parametrize(

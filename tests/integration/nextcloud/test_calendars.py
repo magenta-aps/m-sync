@@ -121,9 +121,7 @@ async def test_busy_blocks_are_written_listed_and_deleted(
         calendar_href, MONDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert list(objects) == [PLANNING_BUSY_BLOCK_NAME]
-    assert read_busy_block(objects[PLANNING_BUSY_BLOCK_NAME]) == BusyPeriod(
-        start=MONDAY_NINE, end=MONDAY_TEN
-    )
+    assert read_busy_block(objects[PLANNING_BUSY_BLOCK_NAME]) == PLANNING
     later_objects = await nextcloud.calendars.list_objects(
         calendar_href, TUESDAY_MIDNIGHT, datetime(2030, 1, 9, tzinfo=UTC)
     )

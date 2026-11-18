@@ -27,6 +27,7 @@ from ..model import (
     EventSource,
     FreeBusyStatus,
     FullDayInterval,
+    GroupwareSystemName,
     Interval,
 )
 from .spans import BusyPeriod, Span
@@ -59,6 +60,15 @@ _BUSY_BLOCK_PREFIX = "msync-busy-"
 # Hex digits of the hash in a busy block's name: 128 bits.
 _NAME_HASH_LENGTH = 32
 
+# The source of the event a busy block shows. A busy block's name is a hash,
+# so it cannot give the source back.
+_SOURCE_SYSTEM_PROPERTY = "X-MSYNC-SOURCE-SYSTEM"
+_SOURCE_ORIGINAL_ID_PROPERTY = "X-MSYNC-SOURCE-ORIGINAL-ID"
+
+# The status of the event a busy block shows. An unknown status and an event
+# that takes no time cannot be read back from STATUS and TRANSP.
+_FREE_BUSY_STATUS_PROPERTY = "X-MSYNC-FREE-BUSY-STATUS"
+
 
 class TooManyOccurrencesError(Exception):
     """A series with too many occurrences. `first_occurrences` holds the first ones."""
@@ -77,7 +87,8 @@ def read_events(
     since the shared model has no recurrence. Floating times are in `timezone`."""
     uid = _read_series_uid(calendar)
     if not is_recurring(calendar):
-        return [_make_calendar_event(calendar.events[0], uid, timezone)]
+        source = EventSource(system=NEXTCLOUD, original_id=uid)
+        return [_make_calendar_event(calendar.events[0], source, timezone)]
     window = Span(start=window_start, end=window_end)
     return _expand_series(calendar, uid, timezone, window)
 
@@ -155,11 +166,12 @@ def _expand_series(
 
 def _make_occurrence(occurrence: Event, uid: str, timezone: tzinfo) -> CalendarEvent:
     original_id = f"{uid}/{_format_recurrence_id(occurrence)}"
-    return _make_calendar_event(occurrence, original_id, timezone)
+    source = EventSource(system=NEXTCLOUD, original_id=original_id)
+    return _make_calendar_event(occurrence, source, timezone)
 
 
 def _make_calendar_event(
-    event: Event, original_id: str, timezone: tzinfo
+    event: Event, source: EventSource, timezone: tzinfo
 ) -> CalendarEvent:
     # icalendar refuses a DTSTART and DTEND of different kinds.
     start: date | datetime = event.start
@@ -176,7 +188,7 @@ def _make_calendar_event(
             end=end,
         )
     return CalendarEvent(
-        source=EventSource(original_id=original_id, system=NEXTCLOUD),
+        source=source,
         interval=interval,
         free_busy_status=_read_free_busy_status(event),
     )
@@ -251,6 +263,11 @@ def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
         transparency=TRANSP.TRANSPARENT if is_free else TRANSP.OPAQUE,
         status=STATUS.TENTATIVE if is_tentative else STATUS.CONFIRMED,
     )
+    # FIXME: An id with a newline is added here and makes to_ical raise when
+    # the busy block is put.
+    busy_event.add(_SOURCE_SYSTEM_PROPERTY, event.source.system)  # pyright: ignore[reportUnknownMemberType]
+    busy_event.add(_SOURCE_ORIGINAL_ID_PROPERTY, str(event.source.original_id))  # pyright: ignore[reportUnknownMemberType]
+    busy_event.add(_FREE_BUSY_STATUS_PROPERTY, event.free_busy_status.value)  # pyright: ignore[reportUnknownMemberType]
     # Wrap the busy event in a calendar, which is what Nextcloud stores.
     calendar = Calendar()
     calendar.version = "2.0"
@@ -259,33 +276,51 @@ def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     return calendar
 
 
-def read_busy_block(calendar: Calendar) -> BusyPeriod | None:
-    """What a busy block we wrote says. None if it is not one we can read."""
+def read_busy_block(calendar: Calendar) -> CalendarEvent | None:
+    """The source event a busy block we wrote shows. None if it is not one we
+    can read."""
+    # FIXME: Some events read back different from the source event. An event
+    # that ends before it starts reads back with no length. A part of a second
+    # is not written. Core updates these on every full sync.
     try:
         events = calendar.events
         if len(events) != 1:
             return None
-        event = events[0]
-        start: date | datetime = event.start
-        end: date | datetime = event.end
+        busy_event = events[0]
+        source = _read_busy_block_source(busy_event)
+        if source is None:
+            return None
+        # We always write UTC, so a time without a timezone is read as UTC.
+        event = _make_calendar_event(busy_event, source, UTC)
     except ValueError:
-        # Includes a missing DTSTART or DTEND.
+        # Includes a missing DTSTART.
         return None
-    # A full day has dates without a timezone, so it is no busy period.
-    if not isinstance(start, datetime) or not isinstance(end, datetime):
-        return None
-    # Without a timezone the instant is unknown. We always write UTC.
-    if start.tzinfo is None or end.tzinfo is None:
-        return None
-    return BusyPeriod(
-        start=start.astimezone(UTC),
-        end=end.astimezone(UTC),
-        status=(
-            FreeBusyStatus.TENTATIVE
-            if _read_upper_text(event, "STATUS") == "TENTATIVE"
-            else FreeBusyStatus.BUSY
+    interval = event.interval
+    # A full day without an end is how we write one that takes no time.
+    has_no_length = "DTEND" not in busy_event and "DURATION" not in busy_event
+    if has_no_length and isinstance(interval, FullDayInterval):
+        interval = FullDayInterval(start=interval.start, end=interval.start)
+    status = _read_upper_text(busy_event, _FREE_BUSY_STATUS_PROPERTY).lower()
+    return CalendarEvent(
+        source=source,
+        interval=interval,
+        free_busy_status=(
+            FreeBusyStatus(status)
+            if status in FreeBusyStatus
+            else event.free_busy_status
         ),
     )
+
+
+def _read_busy_block_source(busy_event: Event) -> EventSource | None:
+    system = cast(object, busy_event.get(_SOURCE_SYSTEM_PROPERTY))
+    original_id = cast(object, busy_event.get(_SOURCE_ORIGINAL_ID_PROPERTY))
+    # A missing property is None. A repeated one is a list.
+    if not isinstance(system, str) or not isinstance(original_id, str):
+        return None
+    if not system or not original_id:
+        return None
+    return EventSource(system=GroupwareSystemName(system), original_id=original_id)
 
 
 def read_busy_block_timestamp(calendar: Calendar) -> datetime | None:

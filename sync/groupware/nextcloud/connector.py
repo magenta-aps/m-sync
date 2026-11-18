@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Final, Literal
 
 import structlog
-from pydantic import SecretStr
+from pydantic import MISSING, SecretStr
 from starlette.routing import Mount
 
 from ...config import NextcloudSettings
@@ -22,7 +22,7 @@ from ...model import (
     GroupwareSystemName,
     User,
 )
-from ...nextcloud.ical import make_busy_block_name, render_busy_block
+from ...nextcloud.ical import make_busy_block_name, read_busy_block, render_busy_block
 from .calendars import get_ghost_calendar_href
 from .client import NextcloudClient
 from .connection import (
@@ -60,8 +60,9 @@ class _GhostConflictError(Exception):
 
 
 class NextcloudGroupware:
-    """Writes the busy time of mirrored users into their ghosts. Nextcloud is
-    only a mirror, so no events are read from it and nothing is stored."""
+    """Writes the busy time of mirrored users into their ghosts and reads it
+    back as events. Nextcloud is only a mirror, so no user events are read from
+    it and nothing is stored."""
 
     _client: NextcloudClient
     _service_user_id: str
@@ -73,7 +74,7 @@ class NextcloudGroupware:
         self._ghost_group = settings.ghost_group
 
     async def setup(self) -> None:
-        """Nothing to set up. A ghost is set up on its first write."""
+        """Nothing to set up. A ghost is set up on its first read or write."""
 
     async def run(self) -> None:
         """Nothing runs in the background."""
@@ -84,64 +85,142 @@ class NextcloudGroupware:
     def get_webhooks_mount(self) -> Mount | None:
         return None
 
-    def get_events(
+    async def get_events(
         self,
         user: User,
         window_start: datetime,
         window_end: datetime,
     ) -> AsyncIterator[CalendarEvent]:
-        _ = user
-        _ = window_start
-        _ = window_end
-        raise NotImplementedError
+        """The events in the user's ghost calendar that overlap the window. A
+        ghost that does not exist yet is set up and has none."""
+        calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
+        try:
+            busy_blocks = await self._client.calendars.list_objects(
+                calendar_href, window_start, window_end
+            )
+        except CalendarMissingError:
+            _ = await self._set_up_ghost_or_log(user)
+            return
+        for name, busy_block in busy_blocks.items():
+            event = read_busy_block(busy_block)
+            if event is None or event.source is None:
+                logger.warning(
+                    "skipping unreadable busy block", user_id=user.id, name=name
+                )
+                continue
+            # a busy block under another name is not one we wrote
+            if make_busy_block_name(event.source) != name:
+                logger.warning(
+                    "skipping busy block under another name", user_id=user.id, name=name
+                )
+                continue
+            yield event
 
     async def update_user_list(self, users: set[User]) -> None:
         # only users Nextcloud is the source for
         _ = users
 
     async def send_free_busy(self, user: User, update: FreeBusy) -> None:
-        """Write the update as a busy block in the user's ghost calendar. A write
-        that finds no calendar sets the ghost up and writes once more."""
+        """Write the update as a busy block in the user's ghost calendar."""
         event = CalendarEvent(
-            source=EventSource(system=NEXTCLOUD, original_id=update.source.original_id),
+            source=update.source,
             interval=update.interval,
             free_busy_status=update.free_busy_status,
         )
-        assert event.source is not None
-        name = make_busy_block_name(event.source)
-        busy_block = render_busy_block(event, update.timestamp)
-        calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
-        try:
-            await self._client.calendars.put_object(calendar_href, name, busy_block)
-        except CalendarMissingError:
-            try:
-                await _set_up_ghost(self._client, self._ghost_group, user)
-            except _GhostConflictError as error:
-                logger.warning(
-                    "cannot set up ghost", user_id=user.id, reason=error.reason
-                )
-                return
-            await self._client.calendars.put_object(calendar_href, name, busy_block)
+        await self.create_events(user, [event])
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
-        _ = user
-        _ = events
-        raise NotImplementedError
+        """Write each event as a busy block in the user's ghost calendar. A
+        write that finds no calendar sets the ghost up and writes them all once
+        more. The same event written again replaces its busy block."""
+        calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
+        try:
+            await self._put_busy_blocks(calendar_href, events)
+        except CalendarMissingError:
+            if not await self._set_up_ghost_or_log(user):
+                return
+            await self._put_busy_blocks(calendar_href, events)
 
     async def delete_events(self, user: User, events: list[EventSource]) -> None:
-        _ = user
-        _ = events
-        raise NotImplementedError
+        """Delete the busy block of each source event from the user's ghost
+        calendar. A busy block that is already gone is left alone. A ghost
+        calendar that cannot be written is logged."""
+        calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
+        try:
+            for source in events:
+                name = make_busy_block_name(source)
+                await self._client.calendars.delete_object(calendar_href, name)
+        except CalendarMissingError as error:
+            logger.warning(
+                "cannot delete from ghost calendar", user_id=user.id, error=str(error)
+            )
 
     async def update_events(self, user: User, patches: list[EventPatch]) -> None:
-        _ = user
-        _ = patches
-        raise NotImplementedError
+        """Change the busy block of each patched event in the user's ghost
+        calendar. A patch with only a subject is skipped, since a busy block
+        shows none. A patch for a busy block that is not there or cannot be
+        read is logged and skipped. A ghost calendar that cannot be written is
+        logged and the rest of the patches are skipped."""
+        calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
+        try:
+            for patch in patches:
+                await self._update_busy_block(user, calendar_href, patch)
+        except CalendarMissingError as error:
+            logger.warning(
+                "cannot update in ghost calendar", user_id=user.id, error=str(error)
+            )
+
+    async def _update_busy_block(
+        self, user: User, calendar_href: str, patch: EventPatch
+    ) -> None:
+        if patch.interval is MISSING and patch.free_busy_status is MISSING:
+            return
+        name = make_busy_block_name(patch.source)
+        # FIXME: a write to the same busy block between this read and the put
+        # is lost until the next full sync
+        busy_block = await self._client.calendars.get_object(calendar_href, name)
+        event = None if busy_block is None else read_busy_block(busy_block)
+        if event is None:
+            logger.warning(
+                "no readable busy block to update", user_id=user.id, name=name
+            )
+            return
+        interval = event.interval if patch.interval is MISSING else patch.interval
+        free_busy_status = (
+            event.free_busy_status
+            if patch.free_busy_status is MISSING
+            else patch.free_busy_status
+        )
+        patched_event = CalendarEvent(
+            source=event.source,
+            interval=interval,
+            free_busy_status=free_busy_status,
+        )
+        await self._put_busy_blocks(calendar_href, [patched_event])
+
+    async def _put_busy_blocks(
+        self, calendar_href: str, events: list[CalendarEvent]
+    ) -> None:
+        written_at = datetime.now(UTC)
+        for event in events:
+            assert event.source is not None
+            name = make_busy_block_name(event.source)
+            busy_block = render_busy_block(event, written_at)
+            await self._client.calendars.put_object(calendar_href, name, busy_block)
+
+    async def _set_up_ghost_or_log(self, user: User) -> bool:
+        """Whether the user now has a ghost. A user who cannot get one is logged."""
+        try:
+            await _set_up_ghost(self._client, self._ghost_group, user)
+        except _GhostConflictError as error:
+            logger.warning("cannot set up ghost", user_id=user.id, reason=error.reason)
+            return False
+        return True
 
 
 async def _set_up_ghost(client: NextcloudClient, ghost_group: str, user: User) -> None:
     """Give the user a disabled ghost with its address and our calendar at the
-    href the write computed."""
+    href get_ghost_calendar_href computes."""
     # FIXME: two tasks that set up the same ghost at once can break each other,
     # since each sets its own password and disables the ghost when it is done
     address = _read_ghost_address(user)
@@ -204,8 +283,8 @@ async def _find_conflict_reason(
 async def _give_ghost_its_calendar_and_address(
     client: NextcloudClient, user: User, address: str, password: SecretStr
 ) -> None:
-    """Without an address the share is released, so the next write gets 404 and
-    sets the ghost up again."""
+    """Without an address the share is released, so the next read or write gets
+    404 and sets the ghost up again."""
     try:
         _ = await client.calendars.prepare_ghost_calendar(user.id, password)
         # the address comes last, since Nextcloud mails a later password change

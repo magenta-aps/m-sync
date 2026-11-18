@@ -240,7 +240,7 @@ def make_busy_block_name(source: EventSource) -> str:
 
 def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     """A busy block that says when the source event is and whether it takes
-    time. `stamp` is the time of the source change."""
+    time. `stamp` is when the busy block is written."""
     assert event.source is not None
     start, end = _make_busy_block_bounds(event.interval)
     if end < start:
@@ -324,7 +324,7 @@ def _read_busy_block_source(busy_event: Event) -> EventSource | None:
 
 
 def read_busy_block_timestamp(calendar: Calendar) -> datetime | None:
-    """The DTSTAMP of a busy block we wrote: the time of the update it shows."""
+    """The DTSTAMP of a busy block we wrote: when the busy block was written."""
     try:
         events = calendar.events
         timestamp = cast(object, events[0].DTSTAMP) if len(events) == 1 else None

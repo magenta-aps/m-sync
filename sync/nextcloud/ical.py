@@ -65,8 +65,10 @@ _NAME_HASH_LENGTH = 32
 _SOURCE_SYSTEM_PROPERTY = "X-MSYNC-SOURCE-SYSTEM"
 _SOURCE_ORIGINAL_ID_PROPERTY = "X-MSYNC-SOURCE-ORIGINAL-ID"
 
-# The status of the event a busy block shows. An unknown status and an event
-# that takes no time cannot be read back from STATUS and TRANSP.
+# The status of the event a busy block shows. STATUS and TRANSP cannot hold
+# every status Core sends. An unknown status is written as busy, so it would
+# read back as busy. A busy event that takes no time is written as
+# transparent, so it would read back as free.
 _FREE_BUSY_STATUS_PROPERTY = "X-MSYNC-FREE-BUSY-STATUS"
 
 
@@ -263,10 +265,11 @@ def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
         transparency=TRANSP.TRANSPARENT if is_free else TRANSP.OPAQUE,
         status=STATUS.TENTATIVE if is_tentative else STATUS.CONFIRMED,
     )
-    # FIXME: An id with a newline is added here and makes to_ical raise when
-    # the busy block is put.
+    # FIXME: icalendar cannot write a property value that has a line break in
+    # it. An original_id like "abc\ndef" makes to_ical raise, so that busy
+    # block is not written.
     busy_event.add(_SOURCE_SYSTEM_PROPERTY, event.source.system)  # pyright: ignore[reportUnknownMemberType]
-    busy_event.add(_SOURCE_ORIGINAL_ID_PROPERTY, str(event.source.original_id))  # pyright: ignore[reportUnknownMemberType]
+    busy_event.add(_SOURCE_ORIGINAL_ID_PROPERTY, event.source.original_id)  # pyright: ignore[reportUnknownMemberType]
     busy_event.add(_FREE_BUSY_STATUS_PROPERTY, event.free_busy_status.value)  # pyright: ignore[reportUnknownMemberType]
     # Wrap the busy event in a calendar, which is what Nextcloud stores.
     calendar = Calendar()
@@ -296,7 +299,8 @@ def read_busy_block(calendar: Calendar) -> CalendarEvent | None:
         # Includes a missing DTSTART.
         return None
     interval = event.interval
-    # A full day without an end is how we write one that takes no time.
+    # iCalendar allows a full day event without DTEND and DURATION. We leave
+    # both out on purpose when the source event takes no time.
     has_no_length = "DTEND" not in busy_event and "DURATION" not in busy_event
     if has_no_length and isinstance(interval, FullDayInterval):
         interval = FullDayInterval(start=interval.start, end=interval.start)
@@ -315,7 +319,9 @@ def read_busy_block(calendar: Calendar) -> CalendarEvent | None:
 def _read_busy_block_source(busy_event: Event) -> EventSource | None:
     system = cast(object, busy_event.get(_SOURCE_SYSTEM_PROPERTY))
     original_id = cast(object, busy_event.get(_SOURCE_ORIGINAL_ID_PROPERTY))
-    # A missing property is None. A repeated one is a list.
+    # icalendar gives None when the property is missing. It gives a list when
+    # the same property is there more than once. Neither is a busy block we
+    # wrote.
     if not isinstance(system, str) or not isinstance(original_id, str):
         return None
     if not system or not original_id:

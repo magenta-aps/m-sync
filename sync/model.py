@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
 import starlette.requests
 from pydantic import MISSING, UUID4, BaseModel, ConfigDict, Field
-from pydantic.functional_validators import model_validator
+from pydantic.functional_validators import field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing_extensions import override
 
@@ -45,6 +45,12 @@ class EventSource(BaseModel):
             in the target system.
         """
     )
+
+    @field_validator("original_id", mode="after")
+    @classmethod
+    def _keep_original_id_as_text(cls, original_id: UUID4 | str) -> str:
+        # a UUID and its text are the same ID, but they do not compare equal
+        return str(original_id)
 
 
 class Interval(BaseModel, ABC):  # pyright: ignore[reportUnsafeMultipleInheritance]

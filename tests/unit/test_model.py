@@ -3,12 +3,13 @@
 
 
 from datetime import UTC, date, datetime
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import ValidationError
 
-from sync.model import DatetimeInterval, FullDayInterval
+from sync.model import NEXTCLOUD, DatetimeInterval, EventSource, FullDayInterval
 
 _CPH = ZoneInfo("Europe/Copenhagen")
 
@@ -62,3 +63,15 @@ def test_full_day_interval_timezones():
         microsecond=0,
         tzinfo=None,
     )
+
+
+def test_event_source_keeps_a_uuid_original_id_as_text():
+    as_uuid = EventSource(
+        system=NEXTCLOUD, original_id=UUID("0b6c7a4e-3f5d-4c1a-9e2b-7d8f1a2b3c4d")
+    )
+    as_text = EventSource(
+        system=NEXTCLOUD, original_id="0b6c7a4e-3f5d-4c1a-9e2b-7d8f1a2b3c4d"
+    )
+
+    assert as_uuid == as_text
+    assert as_uuid.original_id == "0b6c7a4e-3f5d-4c1a-9e2b-7d8f1a2b3c4d"

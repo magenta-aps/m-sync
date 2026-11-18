@@ -161,11 +161,12 @@ class EventPatch(BaseModel):
 
 class User(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    name: str = Field(
+    name: str | None = Field(
+        default=None,
         description="""\
             A human-readable name for the user. This cannot be relied upon for
             unique identification.
-        """
+        """,
     )
     id: str = Field(
         description="""\

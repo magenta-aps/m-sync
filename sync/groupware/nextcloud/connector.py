@@ -327,7 +327,9 @@ async def _create_ghost(
     client: NextcloudClient, ghost_group: str, user: User, password: SecretStr
 ) -> None:
     try:
-        await client.accounts.create_user(user.id, user.name, password, ghost_group)
+        await client.accounts.create_user(
+            user.id, user.name or "", password, ghost_group
+        )
     except UserExistsError:
         # another task created it and is setting it up, so it is left alone
         logger.warning("ghost exists already", user_id=user.id)

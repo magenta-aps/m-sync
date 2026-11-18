@@ -8,8 +8,8 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
 import starlette.requests
-from pydantic import MISSING, UUID4, BaseModel, ConfigDict, Field
-from pydantic.functional_validators import field_validator, model_validator
+from pydantic import MISSING, BaseModel, ConfigDict, Field
+from pydantic.functional_validators import model_validator
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing_extensions import override
 
@@ -35,7 +35,7 @@ class EventSource(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     system: GroupwareSystemName
-    original_id: UUID4 | str = Field(
+    original_id: str = Field(
         description="""\
             some opaque ID that the original system can use to uniquely identify
             the event. In CalDAV, this is the UID property of the VEVENT object.
@@ -45,12 +45,6 @@ class EventSource(BaseModel):
             in the target system.
         """
     )
-
-    @field_validator("original_id", mode="after")
-    @classmethod
-    def _keep_original_id_as_text(cls, original_id: UUID4 | str) -> str:
-        # a UUID and its text are the same ID, but they do not compare equal
-        return str(original_id)
 
 
 class Interval(BaseModel, ABC):  # pyright: ignore[reportUnsafeMultipleInheritance]

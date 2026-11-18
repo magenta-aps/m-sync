@@ -159,7 +159,7 @@ async def test_list_events_filters_by_time_window(
 
     async def make_event(start: datetime, end: datetime) -> str:
         event = CalendarEvent(
-            source=EventSource(system=source_system, original_id=uuid4()),
+            source=EventSource(system=source_system, original_id=str(uuid4())),
             interval=DatetimeInterval(start=start, end=end),
             free_busy_status=FreeBusyStatus.BUSY,
         )
@@ -199,7 +199,7 @@ async def test_create_then_delete_borrowed_event(
     t0 = datetime(year=2020, month=1, day=1, hour=0, tzinfo=UTC)
     t1 = datetime(year=2020, month=1, day=1, hour=1, tzinfo=UTC)
 
-    source = EventSource(system=GroupwareSystemName("test"), original_id=uuid4())
+    source = EventSource(system=GroupwareSystemName("test"), original_id=str(uuid4()))
     event = CalendarEvent(
         source=source,
         interval=DatetimeInterval(start=t0, end=t1),
@@ -229,7 +229,9 @@ async def test_full_day_event_round_trips(ms_graph: MsGraph, ms_user: User) -> N
 
     user_id = ms_user.id
     event = CalendarEvent(
-        source=EventSource(system=GroupwareSystemName("test"), original_id=uuid4()),
+        source=EventSource(
+            system=GroupwareSystemName("test"), original_id=str(uuid4())
+        ),
         interval=interval,
         free_busy_status=FreeBusyStatus.BUSY,
     )

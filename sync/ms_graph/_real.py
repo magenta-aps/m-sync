@@ -358,4 +358,4 @@ def _extract_event_source(event: _GraphEvent) -> EventSource | None:
     original_id = extension_data["source__original_id"]
     # the SDK deserializes UUID-shaped strings into UUID objects
     assert isinstance(original_id, (str, UUID))
-    return EventSource(system=GroupwareSystemName(system), original_id=original_id)
+    return EventSource(system=GroupwareSystemName(system), original_id=str(original_id))

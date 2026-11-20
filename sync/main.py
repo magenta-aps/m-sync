@@ -15,6 +15,8 @@ from starlette.routing import BaseRoute, Route
 from sync.config import DirectoryServiceName, Settings, get_settings
 from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 from sync.groupware.microsoft_cloud.connector import MicrosoftCloudGroupware
+from sync.groupware.nextcloud.client import RealNextcloudClient
+from sync.groupware.nextcloud.connector import NextcloudGroupware
 
 from .core import Core
 from .database import check_database, make_database_engine, make_sessionmaker
@@ -97,7 +99,8 @@ def _make_groupware_connectors(
         sessionmaker = make_sessionmaker(database_engine)
         yield MicrosoftCloudGroupware(client, sessionmaker, settings, core)
     if settings.nextcloud is not None:
-        logger.warning("nextcloud connector hasn't been implemented yet")
+        nextcloud_client = RealNextcloudClient(settings.nextcloud)
+        yield NextcloudGroupware(nextcloud_client, settings.nextcloud)
 
 
 async def _refresh_users_loop(core: Core) -> None:

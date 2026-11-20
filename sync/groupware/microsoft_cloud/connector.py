@@ -91,7 +91,7 @@ class MicrosoftCloudGroupware:
 
     async def update_user_list(self, users: set[User]) -> None:
         async with self._database() as session:
-            await update_user_status(session, {user.id for user in users})
+            await update_user_status(session, users)
             await session.commit()
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None:
@@ -133,7 +133,7 @@ class MicrosoftCloudGroupware:
         logger.debug(
             "performing full sync",
             worker_id=worker_id,
-            user_id=lock.row_id,
+            user_id=lock.user.id,
             lock_id=lock.lock_id,
         )
 
@@ -143,7 +143,7 @@ class MicrosoftCloudGroupware:
         delta_link = None
         events: list[CalendarEvent] = []
         async for item in self._client.list_calendar_events(
-            user_id=lock.row_id,
+            user_id=lock.user.id,
             window_start=window_start,
             window_end=window_end,
         ):
@@ -154,9 +154,12 @@ class MicrosoftCloudGroupware:
             events.append(event)
         assert delta_link is not None
 
-        user = User(id=lock.row_id)
         await self._core.full_sync(
-            self.get_groupware_system_name(), user, events, window_start, window_end
+            self.get_groupware_system_name(),
+            lock.user,
+            events,
+            window_start,
+            window_end,
         )
 
         async with self._database() as session:
@@ -173,7 +176,7 @@ class MicrosoftCloudGroupware:
         logger.debug(
             "performing delta sync",
             worker_id=worker_id,
-            user_id=lock.row_id,
+            user_id=lock.user.id,
             lock_id=lock.lock_id,
         )
         # TODO: actual implementation here

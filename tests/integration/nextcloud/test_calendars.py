@@ -75,6 +75,18 @@ async def test_a_write_to_a_ghost_without_a_calendar_is_a_missing_calendar(
         )
 
 
+async def test_an_object_of_a_ghost_without_a_calendar_is_none(
+    nextcloud_settings: NextcloudSettings, nextcloud: NextcloudClient, ghost: str
+) -> None:
+    calendar_href = get_ghost_calendar_href(nextcloud_settings.service_user, ghost)
+
+    busy_block = await nextcloud.calendars.get_object(
+        calendar_href, PLANNING_BUSY_BLOCK_NAME
+    )
+
+    assert busy_block is None
+
+
 async def test_a_ghost_calendar_leaves_the_ghost_no_login_token(
     nextcloud_settings: NextcloudSettings,
     nextcloud: NextcloudClient,
@@ -121,9 +133,12 @@ async def test_busy_blocks_are_written_listed_and_deleted(
         calendar_href, MONDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert list(objects) == [PLANNING_BUSY_BLOCK_NAME]
-    assert read_busy_block(objects[PLANNING_BUSY_BLOCK_NAME]) == BusyPeriod(
-        start=MONDAY_NINE, end=MONDAY_TEN
+    assert read_busy_block(objects[PLANNING_BUSY_BLOCK_NAME]) == PLANNING
+    busy_block = await nextcloud.calendars.get_object(
+        calendar_href, PLANNING_BUSY_BLOCK_NAME
     )
+    assert busy_block is not None
+    assert read_busy_block(busy_block) == PLANNING
     later_objects = await nextcloud.calendars.list_objects(
         calendar_href, TUESDAY_MIDNIGHT, datetime(2030, 1, 9, tzinfo=UTC)
     )
@@ -135,6 +150,10 @@ async def test_busy_blocks_are_written_listed_and_deleted(
 
     assert not await nextcloud.calendars.list_objects(
         calendar_href, MONDAY_MIDNIGHT, TUESDAY_MIDNIGHT
+    )
+    assert (
+        await nextcloud.calendars.get_object(calendar_href, PLANNING_BUSY_BLOCK_NAME)
+        is None
     )
 
 

@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
 import starlette.requests
-from pydantic import MISSING, UUID4, BaseModel, ConfigDict, Field
+from pydantic import MISSING, BaseModel, ConfigDict, Field
 from pydantic.functional_validators import model_validator
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing_extensions import override
@@ -35,7 +35,7 @@ class EventSource(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
     system: GroupwareSystemName
-    original_id: UUID4 | str = Field(
+    original_id: str = Field(
         description="""\
             some opaque ID that the original system can use to uniquely identify
             the event. In CalDAV, this is the UID property of the VEVENT object.
@@ -113,23 +113,6 @@ class FreeBusyStatus(StrEnum):
     FREE = "free"
     BUSY = "busy"
     TENTATIVE = "tentative"
-
-
-class FreeBusy(BaseModel):
-    """Sent to signal that the free/busy status in a specific interval should be
-    changed on the target calendar."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    source: EventSource
-    timestamp: datetime
-    interval: Interval
-    free_busy_status: FreeBusyStatus
-
-    @model_validator(mode="after")
-    def _check_datetime_timezone(self) -> Self:
-        if self.timestamp.tzinfo is None:
-            raise ValueError("event timestamps missing a timezone")
-        return self
 
 
 class CalendarEvent(BaseModel):

@@ -11,7 +11,6 @@ from .model import (
     CalendarEvent,
     EventPatch,
     EventSource,
-    FreeBusy,
     Group,
     GroupwareSystemName,
     User,
@@ -40,9 +39,6 @@ class GroupwareConnector(Protocol):
     ) -> AsyncIterator[CalendarEvent]: ...
 
     async def update_user_list(self, users: set[User]) -> None: ...
-
-    # TODO: remove this, use create_events or update_events instead
-    async def send_free_busy(self, user: User, update: FreeBusy) -> None: ...
 
     async def create_events(self, user: User, events: list[CalendarEvent]) -> None: ...
 

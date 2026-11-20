@@ -81,6 +81,10 @@ class NextcloudCalendars(ABC):
     ) -> None: ...
 
     @abstractmethod
+    async def get_object(self, calendar_href: str, object_name: str) -> Calendar | None:
+        """The object with that name. None if it or its calendar is not there."""
+
+    @abstractmethod
     async def delete_object(self, calendar_href: str, object_name: str) -> None: ...
 
     @abstractmethod
@@ -191,6 +195,22 @@ class RealNextcloudCalendars(NextcloudCalendars):
         if response.status_code == 404:
             raise CalendarMissingError(f"PUT {response.request.url.path}: HTTP 404")
         check_dav_status(response)
+
+    @override
+    async def get_object(self, calendar_href: str, object_name: str) -> Calendar | None:
+        response = await self._service_dav_client.request(
+            "GET", f"{calendar_href.rstrip('/')}/{object_name}"
+        )
+        if response.status_code == 404:
+            return None
+        check_dav_status(response)
+        try:
+            return Calendar.from_ical(response.text)
+        except ValueError:
+            # From None: the error quotes the calendar data.
+            raise NextcloudError(
+                f"GET {response.request.url.path}: unreadable {object_name}"
+            ) from None
 
     @override
     async def delete_object(self, calendar_href: str, object_name: str) -> None:

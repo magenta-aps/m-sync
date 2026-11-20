@@ -201,6 +201,18 @@ async def test_the_ghost_is_named_after_the_user(
     assert answer.data["displayname"] == mirrored_user.name
 
 
+async def test_a_ghost_of_a_user_without_a_name_is_named_after_the_mail(
+    connector: GroupwareConnector, admin_ocs_client: OcsClient, mirrored_user: User
+) -> None:
+    user = mirrored_user.model_copy(update={"name": None})
+
+    await connector.create_events(user, [PLANNING])
+
+    path = f"/ocs/v2.php/cloud/users/{quote_path_segment(user.id)}"
+    answer = await admin_ocs_client.call_ocs("GET", path, dict[str, object])
+    assert answer.data["displayname"] == user.mail
+
+
 async def test_a_later_write_goes_straight_to_the_ghost_calendar(
     nextcloud: NextcloudClient,
     connector: GroupwareConnector,

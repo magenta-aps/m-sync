@@ -230,7 +230,7 @@ async def _set_up_ghost(client: NextcloudClient, ghost_group: str, user: User) -
         raise _GhostConflictError(reason)
     password = SecretStr(secrets.token_urlsafe(32) + _PASSWORD_SUFFIX)
     if account is None:
-        await _create_ghost(client, ghost_group, user, password)
+        await _create_ghost(client, ghost_group, user, address, password)
     try:
         if account is not None:
             # an account without an address gets no mail about its password
@@ -330,12 +330,16 @@ async def _has_address(client: NextcloudClient, user: User) -> bool:
 
 
 async def _create_ghost(
-    client: NextcloudClient, ghost_group: str, user: User, password: SecretStr
+    client: NextcloudClient,
+    ghost_group: str,
+    user: User,
+    address: str,
+    password: SecretStr,
 ) -> None:
+    # Nextcloud shows a ghost without a display name by its id
+    display_name = user.name or address
     try:
-        await client.accounts.create_user(
-            user.id, user.name or "", password, ghost_group
-        )
+        await client.accounts.create_user(user.id, display_name, password, ghost_group)
     except UserExistsError:
         # another task created it and is setting it up, so it is left alone
         logger.warning("ghost exists already", user_id=user.id)

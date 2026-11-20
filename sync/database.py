@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+import os
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -10,7 +11,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-DATABASE_URL = "postgresql+psycopg://msync:msync@postgres:5432/msync"
+DATABASE_URL = os.environ.get(
+    "MSYNC__DATABASE_URL", "postgresql+psycopg://msync:msync@postgres:5432/msync"
+)
 
 
 def make_database_engine() -> AsyncEngine:

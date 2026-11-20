@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateSchema
 from sqlalchemy.sql.functions import now
 
+from sync.model import User
 from sync.ms_graph import DeltaLink
 
 logger = structlog.stdlib.get_logger()
@@ -42,6 +43,7 @@ UserStatus = Literal["active", "inactive"]
 @final
 class UsersColumns(TypedColumns):
     id = Column(Text, primary_key=True)
+    email = Column(Text, nullable=True)
     status = Column[UserStatus](
         _user_status_enum,
         nullable=False,
@@ -151,15 +153,17 @@ async def create_schema_if_not_exists(session: AsyncSession) -> None:
     await session.commit()
 
 
-async def update_user_status(session: AsyncSession, active_users: set[str]) -> None:
+async def update_user_status(session: AsyncSession, active_users: set[User]) -> None:
     """Given a list of active users, marks users as active/inactive, or inserts
     them if they don't exist."""
+
+    user_ids = {user.id for user in active_users}
 
     # mark inactive users
     _ = await session.execute(
         update(users_table)
         .where(
-            users_table.c.id.not_in(active_users),
+            users_table.c.id.not_in(user_ids),
             users_table.c.status != "inactive",
         )
         .values(status="inactive")
@@ -173,7 +177,12 @@ async def update_user_status(session: AsyncSession, active_users: set[str]) -> N
     # upsert all users that are in `users`, marking them as active
     _ = await session.execute(
         insert(users_table)
-        .values([{"id": user, "status": "active"} for user in active_users])
+        .values(
+            [
+                {"id": user.id, "email": user.mail, "status": "active"}
+                for user in active_users
+            ]
+        )
         .on_conflict_do_update(
             index_elements=[users_table.c.id],
             # inactive users get all their scheduling metadata reset, whereas
@@ -195,7 +204,7 @@ async def update_user_status(session: AsyncSession, active_users: set[str]) -> N
 class UserLock:
     """A handle to an active user synchronization job."""
 
-    row_id: str
+    user: User
     lock_id: uuid.UUID
     delta_link: DeltaLink | None
     last_full_sync: datetime
@@ -242,6 +251,7 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
         )
         .returning(
             users_table.c.id,
+            users_table.c.email,
             users_table.c.delta_link,
             users_table.c.locked_by,
             users_table.c.last_delta_sync_at,
@@ -253,11 +263,11 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
     if maybe_row is None:
         logger.debug("no job to acquire")
         return None
-    id, delta_link, locked_by, last_delta_sync_at, last_full_sync_at = maybe_row
+    id, email, delta_link, locked_by, last_delta_sync_at, last_full_sync_at = maybe_row
     assert locked_by == lock_id, "sanity check"
 
     return UserLock(
-        row_id=id,
+        user=User(id=id, mail=email),
         lock_id=lock_id,
         delta_link=DeltaLink(delta_link) if delta_link else None,
         last_delta_sync=last_delta_sync_at,
@@ -294,7 +304,9 @@ async def commit_user_job(
                 "last_full_sync_at" if full_sync else "last_delta_sync_at": now(),
             },
         )
-        .where(users_table.c.id == lock.row_id, users_table.c.locked_by == lock.lock_id)
+        .where(
+            users_table.c.id == lock.user.id, users_table.c.locked_by == lock.lock_id
+        )
     )
 
 
@@ -313,7 +325,9 @@ async def abort_user_job(
             locked_by=None,
             **({"delta_link": None} if invalidate_delta_link else {}),
         )
-        .where(users_table.c.id == lock.row_id, users_table.c.locked_by == lock.lock_id)
+        .where(
+            users_table.c.id == lock.user.id, users_table.c.locked_by == lock.lock_id
+        )
     )
 
 

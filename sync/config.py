@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
+from datetime import timedelta
 from enum import StrEnum
 from typing import ClassVar, Self
 
@@ -17,6 +18,7 @@ class MicrosoftCloudSettings(BaseModel):
     tenant_id: str
     client_id: str
     client_secret: SecretStr
+    full_sync_period: timedelta = timedelta(hours=25)
 
 
 class NextcloudSettings(BaseModel):

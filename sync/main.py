@@ -31,8 +31,9 @@ def main() -> None:
 
     settings = get_settings()
     database_engine = make_database_engine()
-    groupware = list(_make_groupware_connectors(settings, database_engine))
-    core = Core(_make_dir_service_connector(settings), *groupware)
+    core = Core(_make_dir_service_connector(settings))
+    groupware = list(_make_groupware_connectors(settings, database_engine, core))
+    core.add_groupware(*groupware)
 
     app = make_app(settings, database_engine, core, groupware)
     uvicorn.run(app, host="0.0.0.0", port=5000)
@@ -89,12 +90,12 @@ def _make_dir_service_connector(settings: Settings) -> DirectoryServiceConnector
 
 
 def _make_groupware_connectors(
-    settings: Settings, database_engine: AsyncEngine
+    settings: Settings, database_engine: AsyncEngine, core: Core
 ) -> Iterator[GroupwareConnector]:
     if settings.microsoft_cloud is not None:
         client = RealMsGraph(settings)
         sessionmaker = make_sessionmaker(database_engine)
-        yield MicrosoftCloudGroupware(client, sessionmaker)
+        yield MicrosoftCloudGroupware(client, sessionmaker, settings, core)
     if settings.nextcloud is not None:
         logger.warning("nextcloud connector hasn't been implemented yet")
 

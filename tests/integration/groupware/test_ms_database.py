@@ -18,6 +18,7 @@ from sync.groupware.microsoft_cloud.database import (
     update_user_status,
     users_table,
 )
+from sync.model import User
 from sync.ms_graph import DeltaLink
 
 _LONG_AGO = datetime(year=2020, month=1, day=1, tzinfo=UTC)
@@ -45,6 +46,7 @@ async def test_database_schema(database: async_sessionmaker[AsyncSession]) -> No
         _ = await session.execute(
             insert(users_table).values(
                 id="user-1",
+                email="user-1@example.com",
                 status="active",
                 updated_at=now(),
                 sync_due_at=now(),
@@ -61,11 +63,14 @@ async def test_update_user_status_new(
     the default values for its columns."""
 
     async with database() as session:
-        await update_user_status(session, active_users={"abc123"})
+        await update_user_status(
+            session, active_users={User(id="abc123", mail="user-1@example.com")}
+        )
 
         res = await session.execute(
             select(
                 users_table.c.id,
+                users_table.c.email,
                 users_table.c.status,
                 users_table.c.delta_link,
                 users_table.c.locked_by,
@@ -74,8 +79,9 @@ async def test_update_user_status_new(
         )
         row = res.first()
         assert row is not None
-        id_, status, delta_link, locked_by, retry_count = row
+        id_, email, status, delta_link, locked_by, retry_count = row
         assert id_ == "abc123"
+        assert email == "user-1@example.com"
         assert status == "active"
         assert delta_link is None
         assert locked_by is None
@@ -101,7 +107,7 @@ async def test_update_user_status_idempotent(
             )
         )
 
-        await update_user_status(session, active_users={"abc123"})
+        await update_user_status(session, active_users={User(id="abc123")})
 
         res = await session.execute(
             select(
@@ -173,8 +179,7 @@ async def test_update_user_status_deactivate_some(
             )
         )
 
-        await update_user_status(session, active_users={"user-1"})
-
+        await update_user_status(session, active_users={User(id="user-1")})
         res = await session.execute(
             select(
                 users_table.c.id,
@@ -213,7 +218,7 @@ async def test_update_user_status_reactivate(
             )
         )
 
-        await update_user_status(session, active_users={"abc123"})
+        await update_user_status(session, active_users={User(id="abc123")})
 
         res = await session.execute(
             select(
@@ -256,7 +261,7 @@ async def test_acquire_user_job(database: async_sessionmaker[AsyncSession]) -> N
         lock = await acquire_user_job(session)
 
         assert lock is not None
-        assert lock.row_id == "user-1"
+        assert lock.user.id == "user-1"
 
         res = await session.execute(
             select(
@@ -296,7 +301,7 @@ async def test_acquire_user_job_expired(
         lock = await acquire_user_job(session)
 
         assert lock is not None
-        assert lock.row_id == "user-1"
+        assert lock.user.id == "user-1"
 
         res = await session.execute(
             select(
@@ -404,7 +409,7 @@ async def test_acquire_user_job_ordering(
         lock = await acquire_user_job(session)
 
         assert lock is not None
-        assert lock.row_id == "user-2"
+        assert lock.user.id == "user-2"
 
 
 async def test_acquire_user_job_backoff(
@@ -426,7 +431,7 @@ async def test_acquire_user_job_backoff(
         lock = await acquire_user_job(session)
 
         assert lock is not None
-        assert lock.row_id == "user-1"
+        assert lock.user.id == "user-1"
 
         res = await session.execute(
             select(
@@ -536,7 +541,7 @@ async def test_commit_user_job_lost_lock(
         other_lock = uuid.uuid4()
         _ = await session.execute(
             users_table.update()
-            .where(users_table.c.id == lock.row_id)
+            .where(users_table.c.id == lock.user.id)
             .values(locked_by=other_lock)
         )
         _ = await session.commit()

@@ -3,7 +3,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, NewType, Self, TypedDict
 
@@ -91,6 +91,9 @@ class FullDayInterval(Interval):
     Models a full-day interval. This has the same semantics as iCal, in that
     it explicitly does not take timezones into account. A full day event should
     appear on the same date in any timezone.
+
+    If a timezone-aware datetime is needed, midnight in UTC should be used. The
+    `start_datetime` and `end_datetime` methods do this.
     """
 
     start: date
@@ -101,11 +104,11 @@ class FullDayInterval(Interval):
 
     @override
     def start_datetime(self) -> datetime:
-        return datetime.combine(date=self.start, time=time(), tzinfo=None)
+        return datetime.combine(date=self.start, time=time(), tzinfo=UTC)
 
     @override
     def end_datetime(self) -> datetime:
-        return datetime.combine(date=self.end, time=time(), tzinfo=None)
+        return datetime.combine(date=self.end, time=time(), tzinfo=UTC)
 
 
 class FreeBusyStatus(StrEnum):
@@ -158,11 +161,12 @@ class EventPatch(BaseModel):
 
 class User(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
-    name: str = Field(
+    name: str | None = Field(
+        default=None,
         description="""\
             A human-readable name for the user. This cannot be relied upon for
             unique identification.
-        """
+        """,
     )
     id: str = Field(
         description="""\

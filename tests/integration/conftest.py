@@ -3,9 +3,11 @@
 
 
 from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
 
 import pytest
 from dotenv import dotenv_values
+from more_itertools import one
 from sqlalchemy import Connection, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
@@ -16,6 +18,8 @@ from sqlalchemy.ext.asyncio import (
 
 from sync.config import Settings, get_settings
 from sync.database import DATABASE_URL, make_sessionmaker
+from sync.model import User
+from sync.ms_graph import DeltaLink, MsGraph, RealMsGraph
 
 
 @pytest.fixture(autouse=True)
@@ -56,3 +60,42 @@ async def empty_db(
     engine = create_async_engine(url)
     yield make_sessionmaker(engine)
     await engine.dispose()
+
+
+@pytest.fixture
+def ms_graph(settings: Settings) -> MsGraph:
+    return RealMsGraph(settings)
+
+
+@pytest.fixture
+async def ms_user(ms_graph: MsGraph) -> User:
+    """Returns a default test user in our test Microsoft Cloud instance, with
+    all of its calendar data wiped ahead of time, so tests do not need to
+    trust that other tests clean up after themselves."""
+
+    group = one(
+        [
+            group
+            async for group in ms_graph.list_groups("msync-")
+            if group.name == "msync-microsoft_cloud-nextcloud"
+        ]
+    )
+    assert group.id is not None
+    user = one(
+        [
+            user
+            async for user in ms_graph.list_group_members(group.id)
+            if user.name == "laurits-testensen@magentakommune.dk"
+        ]
+    )
+
+    # delete everything in this window
+    window_start = datetime(2000, 1, 1, tzinfo=UTC)
+    window_end = datetime(2100, 1, 1, tzinfo=UTC)
+    async for event in ms_graph.list_calendar_events(user.id, window_start, window_end):
+        if isinstance(event, DeltaLink):
+            break
+        event_id, _calendar_event = event
+        await ms_graph.delete_event(user.id, event_id)
+
+    return user

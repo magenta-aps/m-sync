@@ -42,7 +42,8 @@ def test_full_day_interval_timezones():
         end=date(2020, 1, 2),
     )
 
-    assert interval.start_datetime() == datetime(  # noqa: DTZ001
+    # full-day intervals canonicalize to midnight in UTC
+    assert interval.start_datetime() == datetime(
         year=2020,
         month=1,
         day=1,
@@ -50,9 +51,9 @@ def test_full_day_interval_timezones():
         minute=0,
         second=0,
         microsecond=0,
-        tzinfo=None,
+        tzinfo=UTC,
     )
-    assert interval.end_datetime() == datetime(  # noqa: DTZ001
+    assert interval.end_datetime() == datetime(
         year=2020,
         month=1,
         day=2,
@@ -60,5 +61,5 @@ def test_full_day_interval_timezones():
         minute=0,
         second=0,
         microsecond=0,
-        tzinfo=None,
+        tzinfo=UTC,
     )

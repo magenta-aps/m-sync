@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+import asyncio
 import re
 import secrets
 from collections.abc import AsyncIterator
@@ -76,7 +77,12 @@ class NextcloudGroupware:
         """Nothing to set up. A ghost is set up on its first read or write."""
 
     async def run(self) -> None:
-        """Nothing runs in the background."""
+        """Wait until cancelled and then close the client."""
+        # FIXME: a task cancelled before it starts never closes the client.
+        try:
+            _ = await asyncio.Event().wait()
+        finally:
+            await self._client.close()
 
     def get_groupware_system_name(self) -> GroupwareSystemName:
         return NEXTCLOUD

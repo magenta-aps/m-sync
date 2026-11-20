@@ -7,12 +7,19 @@ include:
       - /gitlab-ci-templates/common/rules.v1.yml
       - /gitlab-ci-templates/common/pre-commit.v1.yml
       - /gitlab-ci-templates/common/conventional-commits-meta.v1.yml
+      - /gitlab-ci-templates/common/docker-build-meta.v2.yml
+      - /gitlab-ci-templates/common/docker-release-meta.v1.yml
 
 stages:
   - lint
+  - build
+  - release
 
 variables:
   IMAGE_SHA: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
+  # Docker Hub repository, created by salt-automation:
+  # terraform/services/dockerhub/registries/digsuv.yaml
+  RELEASE_REGISTRY_IMAGE: magentaaps/msync
   POETRY_VERSION: "2.4.1"
   PRECOMMIT_USE_POETRY: "true"
   # create the poetry venv as .venv in the project directory so basedpyright's
@@ -51,3 +58,30 @@ lint:commits:
 
 Pre-commit:
   image: python:3.14
+
+
+# Build
+#######
+
+Build:
+  extends: .build-docker
+
+
+# Release
+#########
+
+# On master: run semantic-release, which creates a version tag (and GitLab
+# release) from the conventional commits. The tag triggers a tag pipeline.
+release:semantic-commit:
+  extends: .release:semantic-commit
+
+# On master: push the image to magentaaps/msync:master
+Release master:
+  extends: .release-master
+  needs: [Build]
+
+# On an X.Y.Z tag: push the image to magentaaps/msync with the semver tags
+# computed by "Generate release tags" (X.Y.Z, X.Y, X, ...)
+Release version:
+  extends: .release-version
+  needs: [Build, Generate release tags]

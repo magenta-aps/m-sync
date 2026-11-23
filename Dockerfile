@@ -27,4 +27,10 @@ COPY tests ./tests
 
 EXPOSE 5000
 
-CMD ["poetry", "run", "python", "-m", "sync"]
+# uvicorn reads this environment variable directly
+ENV UVICORN_WORKERS=1
+
+CMD poetry run uvicorn sync.main:main \
+    --factory \
+    --host 0.0.0.0 \
+    --port 5000

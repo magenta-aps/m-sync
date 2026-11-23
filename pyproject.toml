@@ -60,8 +60,13 @@ msgraph-sdk = "msgraph"
 azure-identity = "azure"
 
 [tool.deptry.per_rule_ignores]
-# used as the database driver through SQLAlchemy's connection URL
-DEP002 = ["psycopg"]
+DEP002 = [
+    # used as the database driver through SQLAlchemy's connection URL
+    "psycopg",
+
+    # used in Dockerfile
+    "uvicorn"
+]
 
 [tool.basedpyright]
 # pin the import-resolution environment to the in-project poetry venv so the

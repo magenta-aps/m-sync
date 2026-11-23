@@ -35,7 +35,7 @@ def test_health_endpoint_is_reachable(settings: Settings) -> None:
 
 def test_app_closes_the_nextcloud_client_when_it_stops(settings: Settings) -> None:
     assert settings.nextcloud is not None, "missing Nextcloud configuration"
-    database_engine = make_database_engine()
+    database_engine = make_database_engine(settings)
     nextcloud_client = RealNextcloudClient(settings.nextcloud)
     connector = NextcloudGroupware(nextcloud_client, settings.nextcloud)
     core = Core(DummyDirectoryService(), connector)

@@ -32,7 +32,7 @@ GHOST_GROUP = "msync-ghosts"
 MANAGED_GROUPS = [GHOST_GROUP, "msync-released"]
 
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def manager_is_sub_admin() -> AsyncIterator[None]:
     """The manager is a sub-admin of the ghost groups, as it is in production. occ
     has no command for it, so the Nextcloud admin sets it over OCS and removes it
@@ -117,8 +117,10 @@ def nextcloud_settings(settings: Settings) -> NextcloudSettings:
 
 @pytest.fixture
 async def nextcloud_client(
+    manager_is_sub_admin: None,
     nextcloud_settings: NextcloudSettings,
 ) -> AsyncIterator[NextcloudClient]:
+    _ = manager_is_sub_admin
     async with RealNextcloudClient(nextcloud_settings) as nextcloud_client:
         yield nextcloud_client
 

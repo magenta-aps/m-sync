@@ -793,6 +793,7 @@ async def test_a_free_event_is_written_transparent_and_leaves_the_time_free(
     assert busy_periods == []
 
 
+@pytest.mark.usefixtures("manager_is_sub_admin")
 @pytest.mark.parametrize(
     ("calendar_timezone", "local_midnight"),
     [

@@ -169,6 +169,7 @@ async def test_an_unknown_user_is_not_found(nextcloud_client: NextcloudClient) -
         _ = await nextcloud_client.accounts.get_account(str(uuid4()))
 
 
+@pytest.mark.usefixtures("manager_is_sub_admin")
 async def test_an_answer_that_is_not_ocs_is_an_error_that_does_not_quote_it(
     manager_ocs_client: OcsClient,
 ) -> None:

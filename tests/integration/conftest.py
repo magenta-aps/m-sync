@@ -86,7 +86,7 @@ async def ms_user(ms_graph: MsGraph) -> User:
         [
             user
             async for user in ms_graph.list_group_members(group.id)
-            if user.name == "laurits-testensen@magentakommune.dk"
+            if user.mail == "laurits-testensen@magentakommune.dk"
         ]
     )
 

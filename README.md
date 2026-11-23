@@ -55,9 +55,11 @@ You also need the following to exist in external systems:
     - `User.Read.All`
     - `Calendars.ReadWrite.All`
   - A group called `msync-microsoft_cloud-nextcloud`, with users:
-    - upn: `laurits-testensen@magentakommune.dk`
+    - email: `laurits-testensen@magentakommune.dk`
+    - display name: `Laurits Testensen`
   - A group called `msync-nextcloud-microsoft_cloud`, with users:
-    - upn: `anne-testensen@magentakommune.dk`
+    - email: `anne-testensen@magentakommune.dk`
+    - display name: `Anne Testensen`
 
 Some tests require a postgres instance to be running, for these, the easiest thing is to
 run them inside a running docker compose stack. You can also spin up a local postgres instance

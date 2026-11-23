@@ -174,14 +174,14 @@ def ghost_password() -> SecretStr:
 
 @pytest.fixture
 async def ghost(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     cleanup_accounts: NextcloudAccounts,
     ghost_password: SecretStr,
 ) -> AsyncIterator[str]:
     """A new ghost without an address, deleted again with its calendars."""
     user_id = str(uuid4())
     try:
-        await nextcloud.accounts.create_user(
+        await nextcloud_client.accounts.create_user(
             user_id, "Test Ghost", ghost_password, GHOST_GROUP
         )
         yield user_id
@@ -193,14 +193,14 @@ async def ghost(
 
 @pytest.fixture
 async def three_ghosts(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     cleanup_accounts: NextcloudAccounts,
     ghost_password: SecretStr,
 ) -> AsyncIterator[list[str]]:
     ghost_ids = [str(uuid4()) for _ in range(3)]
     try:
         for ghost_id in ghost_ids:
-            await nextcloud.accounts.create_user(
+            await nextcloud_client.accounts.create_user(
                 ghost_id, "Test Ghost", ghost_password, GHOST_GROUP
             )
         yield ghost_ids

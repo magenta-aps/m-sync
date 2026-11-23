@@ -76,11 +76,11 @@ def nextcloud_settings(settings: Settings) -> NextcloudSettings:
 
 
 @pytest.fixture
-async def nextcloud(
+async def nextcloud_client(
     nextcloud_settings: NextcloudSettings,
 ) -> AsyncIterator[NextcloudClient]:
-    async with RealNextcloudClient(nextcloud_settings) as nextcloud:
-        yield nextcloud
+    async with RealNextcloudClient(nextcloud_settings) as nextcloud_client:
+        yield nextcloud_client
 
 
 @pytest.fixture

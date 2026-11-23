@@ -16,8 +16,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from sync.config import Settings, get_settings
+from sync.config import NextcloudSettings, Settings, get_settings
 from sync.database import make_sessionmaker
+from sync.groupware.nextcloud.client import NextcloudClient, RealNextcloudClient
 from sync.model import User
 from sync.ms_graph import DeltaLink, MsGraph, RealMsGraph
 
@@ -66,6 +67,20 @@ async def empty_db(
 @pytest.fixture
 def ms_graph(settings: Settings) -> MsGraph:
     return RealMsGraph(settings)
+
+
+@pytest.fixture
+def nextcloud_settings(settings: Settings) -> NextcloudSettings:
+    assert settings.nextcloud is not None, "missing Nextcloud configuration"
+    return settings.nextcloud
+
+
+@pytest.fixture
+async def nextcloud(
+    nextcloud_settings: NextcloudSettings,
+) -> AsyncIterator[NextcloudClient]:
+    async with RealNextcloudClient(nextcloud_settings) as nextcloud:
+        yield nextcloud
 
 
 @pytest.fixture

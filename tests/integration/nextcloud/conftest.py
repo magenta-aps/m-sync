@@ -13,8 +13,8 @@ import pytest_asyncio
 from dotenv import dotenv_values
 from pydantic import SecretStr
 
-from sync.config import NextcloudSettings, Settings
-from sync.groupware.nextcloud.client import NextcloudClient, RealNextcloudClient
+from sync.config import NextcloudSettings
+from sync.groupware.nextcloud.client import NextcloudClient
 from sync.groupware.nextcloud.connection import NotFoundError, quote_path_segment
 from sync.groupware.nextcloud.ocs import (
     NextcloudAccounts,
@@ -54,20 +54,6 @@ async def _manager_is_sub_admin() -> AsyncIterator[None]:
         yield
         for group in added:
             _ = await admin.call_ocs("DELETE", path, object, form={"groupid": group})
-
-
-@pytest.fixture
-def nextcloud_settings(settings: Settings) -> NextcloudSettings:
-    assert settings.nextcloud is not None, "missing Nextcloud configuration"
-    return settings.nextcloud
-
-
-@pytest.fixture
-async def nextcloud(
-    nextcloud_settings: NextcloudSettings,
-) -> AsyncIterator[NextcloudClient]:
-    async with RealNextcloudClient(nextcloud_settings) as nextcloud:
-        yield nextcloud
 
 
 @pytest.fixture

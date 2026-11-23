@@ -12,7 +12,7 @@ from tests.helpers import DummyDirectoryService
 
 
 def test_database_health_endpoint(settings: Settings) -> None:
-    database_engine = make_database_engine()
+    database_engine = make_database_engine(settings)
     directory_service = DummyDirectoryService()
     core = Core(directory_service)
     app: Starlette = make_app(settings, database_engine, core, [])

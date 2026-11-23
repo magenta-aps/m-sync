@@ -2,10 +2,13 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+import os
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 
+import httpx
 import pytest
+import pytest_asyncio
 from dotenv import dotenv_values
 from more_itertools import one
 from sqlalchemy import Connection, create_engine, text
@@ -19,8 +22,45 @@ from sqlalchemy.ext.asyncio import (
 from sync.config import NextcloudSettings, Settings, get_settings
 from sync.database import make_sessionmaker
 from sync.groupware.nextcloud.client import NextcloudClient, RealNextcloudClient
+from sync.groupware.nextcloud.connection import quote_path_segment
+from sync.groupware.nextcloud.ocs import OcsClient
 from sync.model import User
 from sync.ms_graph import DeltaLink, MsGraph, RealMsGraph
+
+# Nextcloud groups the ghost accounts live in, from `compose.test.yaml`.
+GHOST_GROUP = "msync-ghosts"
+MANAGED_GROUPS = [GHOST_GROUP, "msync-released"]
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
+async def manager_is_sub_admin() -> AsyncIterator[None]:
+    """The manager is a sub-admin of the ghost groups, as it is in production. occ
+    has no command for it, so the Nextcloud admin sets it over OCS and removes it
+    after. `.env` wins over the environment, as in `_load_env`."""
+
+    dotenv = {key: value for key, value in dotenv_values(".env").items() if value}
+    env = dict(os.environ) | dotenv
+    admin_user = env.get("NEXTCLOUD_ADMIN_USER")
+    admin_password = env.get("NEXTCLOUD_ADMIN_PASSWORD")
+    nextcloud_url = env.get("MSYNC__NEXTCLOUD__URL")
+    manager_user = env.get("MSYNC__NEXTCLOUD__MANAGER_USER")
+    if not nextcloud_url or not manager_user:
+        pytest.fail("missing Nextcloud configuration")
+    if not admin_user or not admin_password:
+        # Without an admin the manager must already be a sub-admin.
+        yield
+        return
+    path = f"/ocs/v2.php/cloud/users/{quote_path_segment(manager_user)}/subadmins"
+    admin_auth = httpx.BasicAuth(admin_user, admin_password)
+    async with OcsClient(nextcloud_url, admin_auth) as admin:
+        answer = await admin.call_ocs("GET", path, list[str])
+        # Only what we add, so a Nextcloud set up by hand keeps its sub-admins.
+        added = [group for group in MANAGED_GROUPS if group not in answer.data]
+        for group in added:
+            _ = await admin.call_ocs("POST", path, object, form={"groupid": group})
+        yield
+        for group in added:
+            _ = await admin.call_ocs("DELETE", path, object, form={"groupid": group})
 
 
 @pytest.fixture(autouse=True)

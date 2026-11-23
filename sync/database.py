@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -10,11 +9,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-DATABASE_URL = "postgresql+psycopg://msync:msync@postgres:5432/msync"
+from sync.config import Settings
 
 
-def make_database_engine() -> AsyncEngine:
-    return create_async_engine(DATABASE_URL, connect_args={"connect_timeout": 5})
+def make_database_engine(settings: Settings) -> AsyncEngine:
+    return create_async_engine(
+        settings.database_url, connect_args={"connect_timeout": 5}
+    )
 
 
 def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

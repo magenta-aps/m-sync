@@ -17,7 +17,7 @@ from tests.helpers import DummyDirectoryService
 
 
 def test_health_endpoint_is_reachable(settings: Settings) -> None:
-    database_engine = make_database_engine()
+    database_engine = make_database_engine(settings)
     directory_service = DummyDirectoryService()
     core = Core(directory_service)
 

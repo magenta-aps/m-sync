@@ -32,7 +32,7 @@ def main() -> None:
     configuration."""
 
     settings = get_settings()
-    database_engine = make_database_engine()
+    database_engine = make_database_engine(settings)
     core = Core(_make_dir_service_connector(settings))
     groupware = list(_make_groupware_connectors(settings, database_engine, core))
     core.add_groupware(*groupware)

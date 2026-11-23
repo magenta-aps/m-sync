@@ -66,6 +66,8 @@ class Settings(BaseSettings):
 
     nextcloud: NextcloudSettings | None = None
 
+    database_url: str = "postgresql+psycopg://msync:msync@postgres:5432/msync"
+
 
 def get_settings() -> Settings:
     return Settings()  # pyright: ignore[reportCallIssue]

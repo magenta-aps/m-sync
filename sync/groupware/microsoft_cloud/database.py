@@ -44,6 +44,7 @@ UserStatus = Literal["active", "inactive"]
 class UsersColumns(TypedColumns):
     id = Column(Text, primary_key=True)
     email = Column(Text, nullable=True)
+    name = Column(Text, nullable=True)
     status = Column[UserStatus](
         _user_status_enum,
         nullable=False,
@@ -179,7 +180,12 @@ async def update_user_status(session: AsyncSession, active_users: set[User]) -> 
         insert(users_table)
         .values(
             [
-                {"id": user.id, "email": user.mail, "status": "active"}
+                {
+                    "id": user.id,
+                    "email": user.mail,
+                    "name": user.name,
+                    "status": "active",
+                }
                 for user in active_users
             ]
         )
@@ -252,6 +258,7 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
         .returning(
             users_table.c.id,
             users_table.c.email,
+            users_table.c.name,
             users_table.c.delta_link,
             users_table.c.locked_by,
             users_table.c.last_delta_sync_at,
@@ -263,11 +270,19 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
     if maybe_row is None:
         logger.debug("no job to acquire")
         return None
-    id, email, delta_link, locked_by, last_delta_sync_at, last_full_sync_at = maybe_row
+    (
+        id,
+        email,
+        name,
+        delta_link,
+        locked_by,
+        last_delta_sync_at,
+        last_full_sync_at,
+    ) = maybe_row
     assert locked_by == lock_id, "sanity check"
 
     return UserLock(
-        user=User(id=id, mail=email),
+        user=User(id=id, mail=email, name=name),
         lock_id=lock_id,
         delta_link=DeltaLink(delta_link) if delta_link else None,
         last_delta_sync=last_delta_sync_at,

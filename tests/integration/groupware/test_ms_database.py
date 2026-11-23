@@ -47,6 +47,7 @@ async def test_database_schema(database: async_sessionmaker[AsyncSession]) -> No
             insert(users_table).values(
                 id="user-1",
                 email="user-1@example.com",
+                name="User One",
                 status="active",
                 updated_at=now(),
                 sync_due_at=now(),
@@ -64,13 +65,17 @@ async def test_update_user_status_new(
 
     async with database() as session:
         await update_user_status(
-            session, active_users={User(id="abc123", mail="user-1@example.com")}
+            session,
+            active_users={
+                User(id="abc123", mail="user-1@example.com", name="User One")
+            },
         )
 
         res = await session.execute(
             select(
                 users_table.c.id,
                 users_table.c.email,
+                users_table.c.name,
                 users_table.c.status,
                 users_table.c.delta_link,
                 users_table.c.locked_by,
@@ -79,9 +84,10 @@ async def test_update_user_status_new(
         )
         row = res.first()
         assert row is not None
-        id_, email, status, delta_link, locked_by, retry_count = row
+        id_, email, name, status, delta_link, locked_by, retry_count = row
         assert id_ == "abc123"
         assert email == "user-1@example.com"
+        assert name == "User One"
         assert status == "active"
         assert delta_link is None
         assert locked_by is None

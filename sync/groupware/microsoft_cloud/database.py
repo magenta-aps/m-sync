@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+import hashlib
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -145,6 +146,10 @@ users_table = Table(
 
 async def create_schema_if_not_exists(session: AsyncSession) -> None:
     """Create the schema, enum and tables if they do not already exist."""
+
+    # advisory lock prevents multiple workers racing to create the schema
+    lock_key = _make_lock_key("groupware_microsoft_cloud")
+    _ = await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
     _ = await session.execute(
         CreateSchema("groupware_microsoft_cloud", if_not_exists=True)
     )
@@ -376,3 +381,9 @@ def _make_backoff(
 def _make_interval(hours: int = 0, secs: float = 0) -> ColumnElement[timedelta]:
     # this is a workaround for this issue: https://github.com/sqlalchemy/sqlalchemy/discussions/8474
     return func.make_interval(0, 0, 0, 0, hours, 0, secs)
+
+
+def _make_lock_key(name: str) -> int:
+    """Generates a stable signed 64-bit int from a string."""
+    digest = hashlib.blake2b(name.encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)

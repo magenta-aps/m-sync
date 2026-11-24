@@ -222,7 +222,9 @@ class UserLock:
     last_delta_sync: datetime
 
 
-async def acquire_user_job(session: AsyncSession) -> UserLock | None:
+async def acquire_user_job(
+    session: AsyncSession, timeout: timedelta | None = None
+) -> UserLock | None:
     """Acquire a lock on a user that needs to be synced, returning its ID.
 
     Returns `None` if there are no pending jobs, or if one could not be selected
@@ -250,6 +252,8 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
     )
     # TODO: if we ever need it, we can apply jitter by multiplying with func.random()
 
+    lock_timeout = (timeout if timeout else timedelta(days=1)).total_seconds()
+
     res = await session.execute(
         update(users_table)
         .where(users_table.c.id == next_job_subquery)
@@ -257,7 +261,7 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
             updated_at=now(),
             sync_due_at=now() + backoff,
             locked_by=lock_id,
-            lock_expires_at=now() + _make_interval(secs=60),
+            lock_expires_at=now() + _make_interval(secs=lock_timeout),
             retry_count=users_table.c.retry_count + 1,
         )
         .returning(

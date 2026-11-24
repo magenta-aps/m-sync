@@ -84,7 +84,7 @@ class MicrosoftCloudGroupware:
                 _ = await semaphore.acquire()
 
                 async with self._database() as session:
-                    lock = await acquire_user_job(session)
+                    lock = await acquire_user_job(session, timeout=timedelta(hours=1))
                     await session.commit()
                 if lock is None:
                     semaphore.release()

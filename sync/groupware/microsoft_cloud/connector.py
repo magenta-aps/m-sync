@@ -3,7 +3,7 @@
 
 
 import asyncio
-from asyncio import Event, TaskGroup
+from asyncio import Event, Semaphore, TaskGroup
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Final
@@ -34,8 +34,12 @@ from .database import (
 
 logger = structlog.stdlib.get_logger()
 
-# how long to wait when there are no jobs to run, before checking again
-_QUEUE_EMPTY_POLL_PERIOD: Final = timedelta(seconds=2)
+# the maximum number of asynchronous sync jobs that can be ongoing at once
+_MAX_ACTIVE_JOBS: Final = 100
+
+# the maximum amount of time we can wait inside the scheduling loop, before
+# continuing to the next iteration
+_SCHEDULER_POLL_PERIOD: Final = timedelta(seconds=2)
 
 # how long to wait between succesful delta syncs
 _DELTA_SYNC_PERIOD: Final = timedelta(seconds=5)
@@ -66,22 +70,37 @@ class MicrosoftCloudGroupware:
 
     async def run(self, stop: Event | None = None) -> None:
         logger.info("started connector")
+        semaphore = Semaphore(_MAX_ACTIVE_JOBS)
         async with TaskGroup() as tg:
             while stop is None or not stop.is_set():
+                # checking if the semaphore is locked lets us re-check the stop
+                # signal instead of hanging indefinitely. Checking before
+                # acquiring is fine, because this async task cannot be suspended
+                # between this call to .locked() and the subsequent call to .acquire()
+                if semaphore.locked():
+                    logger.debug("max number of jobs reached")
+                    await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
+                    continue
+                _ = await semaphore.acquire()
+
                 async with self._database() as session:
                     lock = await acquire_user_job(session)
                     await session.commit()
                 if lock is None:
-                    await asyncio.sleep(_QUEUE_EMPTY_POLL_PERIOD.total_seconds())
+                    semaphore.release()
+                    await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
                     continue
-                _ = tg.create_task(self._sync_job(lock))
+                _ = tg.create_task(self._sync_job(lock, semaphore))
         logger.info("stop signal received")
 
-    async def _sync_job(self, lock: UserLock) -> None:
-        if _full_sync_due(lock, self._settings):
-            await self._full_sync(lock)
-        else:
-            await self._delta_sync(lock)
+    async def _sync_job(self, lock: UserLock, semaphore: Semaphore) -> None:
+        try:
+            if _full_sync_due(lock, self._settings):
+                await self._full_sync(lock)
+            else:
+                await self._delta_sync(lock)
+        finally:
+            semaphore.release()
 
     def get_groupware_system_name(self) -> GroupwareSystemName:
         return GroupwareSystemName("microsoft_cloud")

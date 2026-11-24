@@ -74,12 +74,14 @@ class MicrosoftCloudGroupware:
                 if lock is None:
                     await asyncio.sleep(_QUEUE_EMPTY_POLL_PERIOD.total_seconds())
                     continue
-                if _full_sync_due(lock, self._settings):
-                    _ = tg.create_task(self._full_sync(lock))
-                else:
-                    _ = tg.create_task(self._delta_sync(lock))
-
+                _ = tg.create_task(self._sync_job(lock))
         logger.info("stop signal received")
+
+    async def _sync_job(self, lock: UserLock) -> None:
+        if _full_sync_due(lock, self._settings):
+            await self._full_sync(lock)
+        else:
+            await self._delta_sync(lock)
 
     def get_groupware_system_name(self) -> GroupwareSystemName:
         return GroupwareSystemName("microsoft_cloud")

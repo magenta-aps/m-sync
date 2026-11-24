@@ -1,12 +1,15 @@
 # SPDX-FileCopyrightText: 2026 Magenta ApS <info@magenta.dk>
 # SPDX-License-Identifier: MPL-2.0
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import override
 
 import structlog
+from httpx import ASGITransport, AsyncClient
+from starlette.applications import Starlette
 from starlette.routing import Mount
 
 from sync.model import (
@@ -166,3 +169,16 @@ class DummyMsGraph(MsGraph):
     @override
     async def delete_event(self, user_id: str, event_id: str) -> None:
         raise NotImplementedError()
+
+
+@asynccontextmanager
+async def async_test_client(app: Starlette) -> AsyncGenerator[AsyncClient]:
+    """Makes it possible to run a test client in an async test.
+
+    This is normally not possible using a plain `starlette.testclient.TestClient`,
+    see: https://starlette.dev/testclient/#asynchronous-tests
+    """
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client

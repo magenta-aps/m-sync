@@ -67,9 +67,9 @@ LUNCH = CalendarEvent(
 
 @pytest.fixture
 def connector(
-    nextcloud: NextcloudClient, nextcloud_settings: NextcloudSettings
+    nextcloud_client: NextcloudClient, nextcloud_settings: NextcloudSettings
 ) -> GroupwareConnector:
-    return NextcloudGroupware(nextcloud, nextcloud_settings)
+    return NextcloudGroupware(nextcloud_client, nextcloud_settings)
 
 
 @pytest.fixture
@@ -174,18 +174,20 @@ def users_cannot_change_their_address() -> Iterator[None]:
 
 
 async def test_the_first_write_sets_up_a_disabled_ghost_with_the_busy_time(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
 ) -> None:
     await connector.create_events(mirrored_user, [PLANNING])
 
-    account = await nextcloud.accounts.get_account(mirrored_user.id)
+    account = await nextcloud_client.accounts.get_account(mirrored_user.id)
     assert account.email == mirrored_user.mail
     assert not account.enabled
-    assert mirrored_user.id in await nextcloud.calendars.list_ghost_calendar_hrefs()
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    assert (
+        mirrored_user.id in await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    )
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [BusyPeriod(start=MONDAY_NINE, end=MONDAY_TEN)]
@@ -214,20 +216,20 @@ async def test_a_ghost_of_a_user_without_a_name_is_named_after_the_mail(
 
 
 async def test_a_later_write_goes_straight_to_the_ghost_calendar(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
 ) -> None:
     await connector.create_events(mirrored_user, [PLANNING])
     # Setting the ghost up again would disable it.
-    await nextcloud.accounts.set_enabled(mirrored_user.id, enabled=True)
+    await nextcloud_client.accounts.set_enabled(mirrored_user.id, enabled=True)
 
     await connector.create_events(mirrored_user, [LUNCH])
 
-    account = await nextcloud.accounts.get_account(mirrored_user.id)
+    account = await nextcloud_client.accounts.get_account(mirrored_user.id)
     assert account.enabled
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [
@@ -239,7 +241,7 @@ async def test_a_later_write_goes_straight_to_the_ghost_calendar(
 
 
 async def test_a_moved_event_replaces_its_busy_block(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
@@ -251,20 +253,22 @@ async def test_a_moved_event_replaces_its_busy_block(
 
     await connector.create_events(mirrored_user, [moved_planning])
 
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
-    objects = await nextcloud.calendars.list_objects(
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    objects = await nextcloud_client.calendars.list_objects(
         calendar_hrefs[mirrored_user.id], SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     busy_event = one(one(objects.values()).events)
     assert (busy_event.start, busy_event.end) == (MONDAY_TEN, MONDAY_ELEVEN)
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [BusyPeriod(start=MONDAY_TEN, end=MONDAY_ELEVEN)]
 
 
 async def test_the_first_read_sets_up_a_disabled_ghost_with_no_events(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
     window_end = datetime(2030, 5, 6, tzinfo=UTC)
@@ -272,10 +276,12 @@ async def test_the_first_read_sets_up_a_disabled_ghost_with_no_events(
     events = await _list_events(connector, mirrored_user, window_start, window_end)
 
     assert events == []
-    account = await nextcloud.accounts.get_account(mirrored_user.id)
+    account = await nextcloud_client.accounts.get_account(mirrored_user.id)
     assert account.email == mirrored_user.mail
     assert not account.enabled
-    assert mirrored_user.id in await nextcloud.calendars.list_ghost_calendar_hrefs()
+    assert (
+        mirrored_user.id in await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    )
 
 
 async def test_created_events_are_read_back_in_the_window(
@@ -329,7 +335,9 @@ async def test_created_events_are_read_back_in_the_window(
 
 
 async def test_an_event_created_again_replaces_its_busy_block(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
     window_end = datetime(2030, 1, 8, tzinfo=UTC)
@@ -349,8 +357,8 @@ async def test_an_event_created_again_replaces_its_busy_block(
 
     await connector.create_events(mirrored_user, [moved_planning])
 
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
-    objects = await nextcloud.calendars.list_objects(
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    objects = await nextcloud_client.calendars.list_objects(
         calendar_hrefs[mirrored_user.id], window_start, window_end
     )
     busy_block = one(objects.values())
@@ -392,7 +400,9 @@ async def test_deleted_events_are_gone_and_the_rest_stay(
 
 
 async def test_a_delete_for_a_user_without_a_ghost_is_logged(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     planning_source = EventSource(system=MICROSOFT_CLOUD, original_id="planning")
 
@@ -404,7 +414,7 @@ async def test_a_delete_for_a_user_without_a_ghost_is_logged(
     )
     assert log["user_id"] == mirrored_user.id
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(mirrored_user.id)
+        _ = await nextcloud_client.accounts.get_account(mirrored_user.id)
 
 
 async def test_an_updated_event_keeps_what_the_patch_leaves_out(
@@ -448,7 +458,9 @@ async def test_an_updated_event_keeps_what_the_patch_leaves_out(
 
 
 async def test_a_patch_with_only_a_subject_does_not_write_the_busy_block(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     nine = datetime(2030, 1, 7, 9, tzinfo=UTC)
     ten = datetime(2030, 1, 7, 10, tzinfo=UTC)
@@ -461,9 +473,9 @@ async def test_a_patch_with_only_a_subject_does_not_write_the_busy_block(
     )
     name = make_busy_block_name(planning_source)
     await connector.create_events(mirrored_user, [planning])
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
     calendar_href = calendar_hrefs[mirrored_user.id]
-    await nextcloud.calendars.put_object(
+    await nextcloud_client.calendars.put_object(
         calendar_href, name, render_busy_block(planning, written_at)
     )
 
@@ -471,14 +483,14 @@ async def test_a_patch_with_only_a_subject_does_not_write_the_busy_block(
         mirrored_user, [EventPatch(source=planning_source, subject="Planning")]
     )
 
-    busy_block = await nextcloud.calendars.get_object(calendar_href, name)
+    busy_block = await nextcloud_client.calendars.get_object(calendar_href, name)
     assert busy_block is not None
     assert read_busy_block_timestamp(busy_block) == written_at
 
 
 async def test_an_update_through_a_read_only_share_is_logged_and_changes_nothing(
     nextcloud_settings: NextcloudSettings,
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     ghost_password: SecretStr,
@@ -494,8 +506,8 @@ async def test_an_update_through_a_read_only_share_is_logged_and_changes_nothing
         free_busy_status=FreeBusyStatus.BUSY,
     )
     await connector.create_events(mirrored_user, [planning])
-    await nextcloud.accounts.set_password(mirrored_user.id, ghost_password)
-    await nextcloud.accounts.set_enabled(mirrored_user.id, enabled=True)
+    await nextcloud_client.accounts.set_password(mirrored_user.id, ghost_password)
+    await nextcloud_client.accounts.set_enabled(mirrored_user.id, enabled=True)
     await _share_read_only_as_ghost(
         nextcloud_settings, mirrored_user.id, ghost_password
     )
@@ -548,7 +560,9 @@ async def test_an_update_of_an_event_that_is_not_there_is_logged_and_skipped(
 
 
 async def test_full_syncs_through_core_make_the_ghost_calendar_follow_the_source(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
     window_end = datetime(2030, 1, 9, tzinfo=UTC)
@@ -605,9 +619,9 @@ async def test_full_syncs_through_core_make_the_ghost_calendar_follow_the_source
 
     events = await _list_events(connector, mirrored_user, window_start, window_end)
     assert sorted(events, key=str) == sorted(later_events, key=str)
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
     calendar_href = calendar_hrefs[mirrored_user.id]
-    busy_blocks = await nextcloud.calendars.list_objects(
+    busy_blocks = await nextcloud_client.calendars.list_objects(
         calendar_href, window_start, window_end
     )
 
@@ -622,13 +636,15 @@ async def test_full_syncs_through_core_make_the_ghost_calendar_follow_the_source
     )
 
     # A full sync with nothing new writes nothing, so no busy block changes.
-    assert busy_blocks == await nextcloud.calendars.list_objects(
+    assert busy_blocks == await nextcloud_client.calendars.list_objects(
         calendar_href, window_start, window_end
     )
 
 
 async def test_a_read_skips_a_busy_block_under_another_name(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
     window_end = datetime(2030, 1, 8, tzinfo=UTC)
@@ -646,8 +662,8 @@ async def test_a_read_skips_a_busy_block_under_another_name(
         free_busy_status=FreeBusyStatus.BUSY,
     )
     await connector.create_events(mirrored_user, [planning])
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
-    await nextcloud.calendars.put_object(
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    await nextcloud_client.calendars.put_object(
         calendar_hrefs[mirrored_user.id],
         "copied.ics",
         render_busy_block(lunch, written_at),
@@ -666,7 +682,9 @@ async def test_a_read_skips_a_busy_block_under_another_name(
 
 
 async def test_a_read_skips_a_busy_block_without_a_source(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
     window_end = datetime(2030, 1, 8, tzinfo=UTC)
@@ -684,8 +702,8 @@ async def test_a_read_skips_a_busy_block_without_a_source(
     del busy_event["X-MSYNC-SOURCE-ORIGINAL-ID"]
     # The first read sets the ghost up.
     _ = await _list_events(connector, mirrored_user, window_start, window_end)
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
-    await nextcloud.calendars.put_object(
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    await nextcloud_client.calendars.put_object(
         calendar_hrefs[mirrored_user.id], "without-source.ics", busy_block
     )
 
@@ -702,7 +720,9 @@ async def test_a_read_skips_a_busy_block_without_a_source(
 
 
 async def test_a_read_for_a_user_without_mail_is_logged_and_has_no_events(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     user = mirrored_user.model_copy(update={"mail": None})
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
@@ -719,7 +739,7 @@ async def test_a_read_for_a_user_without_mail_is_logged_and_has_no_events(
         "log_level": "warning",
     } in logs
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(user.id)
+        _ = await nextcloud_client.accounts.get_account(user.id)
 
 
 @pytest.mark.parametrize(
@@ -730,7 +750,7 @@ async def test_a_read_for_a_user_without_mail_is_logged_and_has_no_events(
     ],
 )
 async def test_a_tentative_event_shows_as_tentative_and_an_unknown_one_as_busy(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
@@ -741,7 +761,7 @@ async def test_a_tentative_event_shows_as_tentative_and_an_unknown_one_as_busy(
 
     await connector.create_events(mirrored_user, [event])
 
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [
@@ -750,7 +770,7 @@ async def test_a_tentative_event_shows_as_tentative_and_an_unknown_one_as_busy(
 
 
 async def test_a_free_event_is_written_transparent_and_leaves_the_time_free(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
@@ -761,18 +781,19 @@ async def test_a_free_event_is_written_transparent_and_leaves_the_time_free(
 
     await connector.create_events(mirrored_user, [free_planning])
 
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
-    objects = await nextcloud.calendars.list_objects(
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
+    objects = await nextcloud_client.calendars.list_objects(
         calendar_hrefs[mirrored_user.id], SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     busy_event = one(one(objects.values()).events)
     assert busy_event["TRANSP"] == "TRANSPARENT"
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == []
 
 
+@pytest.mark.usefixtures("manager_is_sub_admin")
 @pytest.mark.parametrize(
     ("calendar_timezone", "local_midnight"),
     [
@@ -820,7 +841,7 @@ async def test_a_full_day_is_written_as_dates_and_covers_the_day_in_the_timezone
 
 
 async def test_an_event_that_takes_no_time_leaves_the_time_free(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
@@ -831,24 +852,24 @@ async def test_an_event_that_takes_no_time_leaves_the_time_free(
 
     await connector.create_events(mirrored_user, [reminder])
 
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == []
 
 
 async def test_a_deleted_ghost_is_set_up_again_on_the_next_write(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
 ) -> None:
     await connector.create_events(mirrored_user, [PLANNING])
-    await nextcloud.accounts.delete_user(mirrored_user.id)
+    await nextcloud_client.accounts.delete_user(mirrored_user.id)
 
     await connector.create_events(mirrored_user, [LUNCH])
 
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [
@@ -857,7 +878,7 @@ async def test_a_deleted_ghost_is_set_up_again_on_the_next_write(
 
 
 async def test_a_ghost_without_a_calendar_is_finished_on_the_first_write(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, ghost: str
+    nextcloud_client: NextcloudClient, connector: GroupwareConnector, ghost: str
 ) -> None:
     # The `ghost` fixture is enabled and has neither address nor calendar.
     address = f"{ghost}@example.com"
@@ -865,10 +886,10 @@ async def test_a_ghost_without_a_calendar_is_finished_on_the_first_write(
 
     await connector.create_events(user, [PLANNING])
 
-    account = await nextcloud.accounts.get_account(ghost)
+    account = await nextcloud_client.accounts.get_account(ghost)
     assert account.email == address
     assert not account.enabled
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [BusyPeriod(start=MONDAY_NINE, end=MONDAY_TEN)]
@@ -876,17 +897,19 @@ async def test_a_ghost_without_a_calendar_is_finished_on_the_first_write(
 
 @pytest.mark.usefixtures("users_cannot_change_their_address")
 async def test_the_manager_sets_the_address_when_users_cannot_change_their_own(
-    nextcloud: NextcloudClient, connector: GroupwareConnector, mirrored_user: User
+    nextcloud_client: NextcloudClient,
+    connector: GroupwareConnector,
+    mirrored_user: User,
 ) -> None:
     await connector.create_events(mirrored_user, [PLANNING])
 
-    account = await nextcloud.accounts.get_account(mirrored_user.id)
+    account = await nextcloud_client.accounts.get_account(mirrored_user.id)
     assert account.email == mirrored_user.mail
     assert not account.enabled
 
 
 async def test_a_refused_address_releases_the_share_until_the_next_write(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mirrored_address: str,
@@ -898,28 +921,28 @@ async def test_a_refused_address_releases_the_share_until_the_next_write(
 
     with pytest.raises(NextcloudError):
         await connector.create_events(refused_user, [PLANNING])
-    calendar_hrefs = await nextcloud.calendars.list_ghost_calendar_hrefs()
+    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
     await connector.create_events(mirrored_user, [PLANNING])
 
     assert mirrored_user.id not in calendar_hrefs
-    account = await nextcloud.accounts.get_account(mirrored_user.id)
+    account = await nextcloud_client.accounts.get_account(mirrored_user.id)
     assert account.email == mirrored_user.mail
     assert not account.enabled
-    busy_periods = await nextcloud.principals.get_busy_periods_by_type(
+    busy_periods = await nextcloud_client.principals.get_busy_periods_by_type(
         mirrored_address, SUNDAY_MIDNIGHT, TUESDAY_MIDNIGHT
     )
     assert busy_periods == [BusyPeriod(start=MONDAY_NINE, end=MONDAY_TEN)]
 
 
 async def test_an_account_with_an_address_keeps_its_password(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     ghost: str,
     ghost_password: SecretStr,
 ) -> None:
     # The `ghost` fixture has no calendar, so a write sets it up.
     other_address = f"other-{ghost}@example.com"
-    await nextcloud.accounts.edit_user(ghost, "email", other_address)
+    await nextcloud_client.accounts.edit_user(ghost, "email", other_address)
     user = User(id=ghost, name=f"upn-{ghost}@example.com", mail=f"{ghost}@example.com")
 
     with capture_logs() as logs:
@@ -931,15 +954,15 @@ async def test_an_account_with_an_address_keeps_its_password(
         "reason": "has_address",
         "log_level": "warning",
     } in logs
-    account = await nextcloud.accounts.get_account(ghost)
+    account = await nextcloud_client.accounts.get_account(ghost)
     assert account.email == other_address
     # It still logs in with its old password.
-    _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
+    _ = await nextcloud_client.calendars.prepare_ghost_calendar(ghost, ghost_password)
 
 
 async def test_an_event_of_a_user_with_a_real_account_is_skipped(
     nextcloud_settings: NextcloudSettings,
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
 ) -> None:
     # The service account is a real account outside the ghost group.
@@ -949,7 +972,7 @@ async def test_an_event_of_a_user_with_a_real_account_is_skipped(
     with capture_logs() as logs:
         await connector.create_events(user, [PLANNING])
 
-    assert not await nextcloud.accounts.is_in_group(
+    assert not await nextcloud_client.accounts.is_in_group(
         service_user, nextcloud_settings.ghost_group
     )
     assert {
@@ -981,7 +1004,7 @@ async def test_an_admin_in_the_ghost_group_is_a_real_account(
 
 
 async def test_an_address_already_in_use_is_not_given_to_a_ghost(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     taken_address: str,
@@ -998,12 +1021,12 @@ async def test_an_address_already_in_use_is_not_given_to_a_ghost(
         "log_level": "warning",
     } in logs
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(user.id)
+        _ = await nextcloud_client.accounts.get_account(user.id)
 
 
 @pytest.mark.parametrize("mail", [None, ""])
 async def test_a_user_without_mail_gets_no_ghost(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mail: str | None,
@@ -1020,7 +1043,7 @@ async def test_a_user_without_mail_gets_no_ghost(
         "log_level": "warning",
     } in logs
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(user.id)
+        _ = await nextcloud_client.accounts.get_account(user.id)
 
 
 @pytest.mark.parametrize(
@@ -1028,7 +1051,7 @@ async def test_a_user_without_mail_gets_no_ghost(
     ["carl.example.com", "carl@localhost", "søren@example.com", "a b@example.com"],
 )
 async def test_a_mail_nextcloud_refuses_as_an_address_gets_no_ghost(
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     mail: str,
@@ -1045,19 +1068,19 @@ async def test_a_mail_nextcloud_refuses_as_an_address_gets_no_ghost(
         "log_level": "warning",
     } in logs
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(user.id)
+        _ = await nextcloud_client.accounts.get_account(user.id)
 
 
 async def test_a_ghost_with_a_read_only_share_is_skipped_and_left_alone(
     nextcloud_settings: NextcloudSettings,
-    nextcloud: NextcloudClient,
+    nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
     ghost_password: SecretStr,
 ) -> None:
     await connector.create_events(mirrored_user, [PLANNING])
-    await nextcloud.accounts.set_password(mirrored_user.id, ghost_password)
-    await nextcloud.accounts.set_enabled(mirrored_user.id, enabled=True)
+    await nextcloud_client.accounts.set_password(mirrored_user.id, ghost_password)
+    await nextcloud_client.accounts.set_enabled(mirrored_user.id, enabled=True)
     await _share_read_only_as_ghost(
         nextcloud_settings, mirrored_user.id, ghost_password
     )
@@ -1072,5 +1095,5 @@ async def test_a_ghost_with_a_read_only_share_is_skipped_and_left_alone(
         "reason": "has_address",
         "log_level": "warning",
     } in logs
-    account = await nextcloud.accounts.get_account(mirrored_user.id)
+    account = await nextcloud_client.accounts.get_account(mirrored_user.id)
     assert account.enabled

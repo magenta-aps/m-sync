@@ -27,23 +27,23 @@ GHOST_GROUP = "msync-ghosts"
 
 
 async def test_a_new_ghost_has_no_address_and_is_in_the_ghost_group(
-    nextcloud: NextcloudClient, ghost: str
+    nextcloud_client: NextcloudClient, ghost: str
 ) -> None:
-    account = await nextcloud.accounts.get_account(ghost)
+    account = await nextcloud_client.accounts.get_account(ghost)
 
     assert account.id == ghost
     assert account.email is None
-    assert await nextcloud.accounts.is_in_group(ghost, GHOST_GROUP)
-    assert not await nextcloud.accounts.is_in_group(ghost, "msync-released")
-    assert ghost in await nextcloud.accounts.list_members(GHOST_GROUP)
+    assert await nextcloud_client.accounts.is_in_group(ghost, GHOST_GROUP)
+    assert not await nextcloud_client.accounts.is_in_group(ghost, "msync-released")
+    assert ghost in await nextcloud_client.accounts.list_members(GHOST_GROUP)
 
 
 async def test_an_edited_address_reads_back(
-    nextcloud: NextcloudClient, ghost: str
+    nextcloud_client: NextcloudClient, ghost: str
 ) -> None:
-    await nextcloud.accounts.edit_user(ghost, "email", f"{ghost}@example.com")
+    await nextcloud_client.accounts.edit_user(ghost, "email", f"{ghost}@example.com")
 
-    account = await nextcloud.accounts.get_account(ghost)
+    account = await nextcloud_client.accounts.get_account(ghost)
 
     assert account.email == f"{ghost}@example.com"
 
@@ -65,17 +65,17 @@ async def test_listing_ghosts_pages_through_all_of_them(
 
 
 async def test_an_empty_group_has_no_ghosts(
-    nextcloud: NextcloudClient, empty_group: str
+    nextcloud_client: NextcloudClient, empty_group: str
 ) -> None:
     # Nextcloud sends the empty map of users as `[]`, PHP's empty array.
-    assert await nextcloud.accounts.list_ghosts(empty_group) == {}
+    assert await nextcloud_client.accounts.list_ghosts(empty_group) == {}
 
 
 async def test_an_unreadable_ghost_is_skipped_and_the_rest_listed(
-    nextcloud: NextcloudClient, ghost: str, admin_in_ghost_group: str
+    nextcloud_client: NextcloudClient, ghost: str, admin_in_ghost_group: str
 ) -> None:
     with capture_logs() as logs:
-        ghosts = await nextcloud.accounts.list_ghosts(GHOST_GROUP)
+        ghosts = await nextcloud_client.accounts.list_ghosts(GHOST_GROUP)
 
     assert ghost in ghosts
     assert admin_in_ghost_group not in ghosts
@@ -87,39 +87,43 @@ async def test_an_unreadable_ghost_is_skipped_and_the_rest_listed(
 
 
 async def test_a_ghost_logs_in_with_a_new_password(
-    nextcloud: NextcloudClient, ghost: str
+    nextcloud_client: NextcloudClient, ghost: str
 ) -> None:
     new_password = SecretStr(secrets.token_urlsafe())
-    await nextcloud.accounts.set_password(ghost, new_password)
+    await nextcloud_client.accounts.set_password(ghost, new_password)
 
-    _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, new_password)
+    _ = await nextcloud_client.calendars.prepare_ghost_calendar(ghost, new_password)
 
-    assert ghost in await nextcloud.calendars.list_ghost_calendar_hrefs()
+    assert ghost in await nextcloud_client.calendars.list_ghost_calendar_hrefs()
 
 
 async def test_a_ghost_can_be_disabled_and_enabled_again(
-    nextcloud: NextcloudClient, ghost: str
+    nextcloud_client: NextcloudClient, ghost: str
 ) -> None:
-    await nextcloud.accounts.set_enabled(ghost, enabled=False)
-    disabled_account = await nextcloud.accounts.get_account(ghost)
-    await nextcloud.accounts.set_enabled(ghost, enabled=True)
-    enabled_account = await nextcloud.accounts.get_account(ghost)
+    await nextcloud_client.accounts.set_enabled(ghost, enabled=False)
+    disabled_account = await nextcloud_client.accounts.get_account(ghost)
+    await nextcloud_client.accounts.set_enabled(ghost, enabled=True)
+    enabled_account = await nextcloud_client.accounts.get_account(ghost)
 
     assert not disabled_account.enabled
     assert enabled_account.enabled
 
 
 async def test_a_disabled_ghost_cannot_log_in(
-    nextcloud: NextcloudClient, ghost: str, ghost_password: SecretStr
+    nextcloud_client: NextcloudClient, ghost: str, ghost_password: SecretStr
 ) -> None:
-    await nextcloud.accounts.set_enabled(ghost, enabled=False)
+    await nextcloud_client.accounts.set_enabled(ghost, enabled=False)
 
     with pytest.raises(NextcloudError):
-        _ = await nextcloud.calendars.prepare_ghost_calendar(ghost, ghost_password)
+        _ = await nextcloud_client.calendars.prepare_ghost_calendar(
+            ghost, ghost_password
+        )
 
 
 async def test_a_user_sets_its_own_address_without_the_manager(
-    nextcloud: NextcloudClient, admin_ocs_client: OcsClient, ghost_password: SecretStr
+    nextcloud_client: NextcloudClient,
+    admin_ocs_client: OcsClient,
+    ghost_password: SecretStr,
 ) -> None:
     # Outside the ghost group, so the manager cannot edit it.
     user_id = str(uuid4())
@@ -129,7 +133,7 @@ async def test_a_user_sets_its_own_address_without_the_manager(
         _ = await admin_ocs_client.call_ocs(
             "POST", "/ocs/v2.php/cloud/users", object, form=form
         )
-        await nextcloud.accounts.set_own_email(
+        await nextcloud_client.accounts.set_own_email(
             user_id, ghost_password, f"{user_id}@example.com"
         )
         answer = await admin_ocs_client.call_ocs("GET", user_path, NextcloudAccount)
@@ -142,29 +146,30 @@ async def test_a_user_sets_its_own_address_without_the_manager(
 
 
 async def test_the_manager_does_not_see_users_outside_its_groups(
-    nextcloud_settings: NextcloudSettings, nextcloud: NextcloudClient
+    nextcloud_settings: NextcloudSettings, nextcloud_client: NextcloudClient
 ) -> None:
     service_user = nextcloud_settings.service_user
 
-    assert not await nextcloud.accounts.is_in_group(service_user, GHOST_GROUP)
+    assert not await nextcloud_client.accounts.is_in_group(service_user, GHOST_GROUP)
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(service_user)
+        _ = await nextcloud_client.accounts.get_account(service_user)
 
 
 async def test_creating_a_user_that_exists_is_a_user_exists_error(
-    nextcloud: NextcloudClient, ghost: str, ghost_password: SecretStr
+    nextcloud_client: NextcloudClient, ghost: str, ghost_password: SecretStr
 ) -> None:
     with pytest.raises(UserExistsError):
-        await nextcloud.accounts.create_user(
+        await nextcloud_client.accounts.create_user(
             ghost, "Test Ghost", ghost_password, GHOST_GROUP
         )
 
 
-async def test_an_unknown_user_is_not_found(nextcloud: NextcloudClient) -> None:
+async def test_an_unknown_user_is_not_found(nextcloud_client: NextcloudClient) -> None:
     with pytest.raises(NotFoundError):
-        _ = await nextcloud.accounts.get_account(str(uuid4()))
+        _ = await nextcloud_client.accounts.get_account(str(uuid4()))
 
 
+@pytest.mark.usefixtures("manager_is_sub_admin")
 async def test_an_answer_that_is_not_ocs_is_an_error_that_does_not_quote_it(
     manager_ocs_client: OcsClient,
 ) -> None:

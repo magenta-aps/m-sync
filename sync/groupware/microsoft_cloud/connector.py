@@ -81,28 +81,38 @@ class MicrosoftCloudGroupware:
                     await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
                     continue
                 _ = await semaphore.acquire()
-
-                async with self._database() as session:
-                    lock = await acquire_user_job(session, timeout=timedelta(hours=1))
-                    await session.commit()
-                if lock is None:
-                    semaphore.release()
-                    await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
-                    continue
-                _ = tg.create_task(self._sync_job(lock, semaphore))
+                # the job acquires its own lock, so a job cancelled before it
+                # starts cannot strand one. See `_sync_job`.
+                _ = tg.create_task(self._sync_job(semaphore))
         logger.info("stop signal received")
 
-    async def _sync_job(self, lock: UserLock, semaphore: Semaphore) -> None:
+    async def _sync_job(self, semaphore: Semaphore) -> None:
+        """Acquire and run one user's job, releasing its lock on every outcome.
+
+        The lock is acquired here rather than in `run`, so that it is only ever
+        held by a task that has already started. A task cancelled before its
+        first step never runs its body, so a lock acquired in `run` and handed
+        to such a task would be stranded until it expires.
+        """
+
         try:
-            if _full_sync_due(lock, self._settings):
-                await self._full_sync(lock)
-            else:
-                await self._delta_sync(lock)
-        except (Exception, CancelledError):
             async with self._database() as session:
-                await abort_user_job(session, lock)
+                lock = await acquire_user_job(session, timeout=timedelta(hours=1))
                 await session.commit()
-            raise
+            if lock is None:
+                # nothing to sync right now, so let the scheduler come back later
+                await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
+                return
+            try:
+                if _full_sync_due(lock, self._settings):
+                    await self._full_sync(lock)
+                else:
+                    await self._delta_sync(lock)
+            except (Exception, CancelledError):
+                async with self._database() as session:
+                    await abort_user_job(session, lock)
+                    await session.commit()
+                raise
         finally:
             semaphore.release()
 

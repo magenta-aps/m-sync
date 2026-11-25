@@ -9,7 +9,6 @@ from sync.core import Core
 from sync.model import (
     CalendarEvent,
     DatetimeInterval,
-    EventPatch,
     EventSource,
     FreeBusyStatus,
     GroupwareSystemName,
@@ -184,12 +183,7 @@ async def test_full_sync_update_one(
         window_end=t3,
     )
 
-    assert system_beta.updated_events[u1] == [
-        EventPatch(
-            source=event_source,
-            interval=DatetimeInterval(start=t1, end=t3),
-        )
-    ]
+    assert system_beta.updated_events[u1] == [source_event]
     assert len(system_beta.created_events) == 0
     assert len(system_beta.deleted_events) == 0
 

@@ -31,14 +31,12 @@ from sync.model import (
     MICROSOFT_CLOUD,
     CalendarEvent,
     DatetimeInterval,
-    EventPatch,
     EventSource,
     FreeBusyStatus,
     FullDayInterval,
     User,
 )
 from sync.nextcloud.ical import (
-    make_busy_block_name,
     read_busy_block_timestamp,
     render_busy_block,
 )
@@ -334,10 +332,12 @@ async def test_created_events_are_read_back_in_the_window(
     )
 
 
-async def test_an_event_created_again_replaces_its_busy_block(
+@pytest.mark.parametrize("update", [False, True])
+async def test_an_event_created_or_updated_again_replaces_its_busy_block(
     nextcloud_client: NextcloudClient,
     connector: GroupwareConnector,
     mirrored_user: User,
+    update: bool,
 ) -> None:
     window_start = datetime(2030, 1, 6, tzinfo=UTC)
     window_end = datetime(2030, 1, 8, tzinfo=UTC)
@@ -355,7 +355,10 @@ async def test_an_event_created_again_replaces_its_busy_block(
     # DTSTAMP has whole seconds.
     before_move = datetime.now(UTC).replace(microsecond=0)
 
-    await connector.create_events(mirrored_user, [moved_planning])
+    if update:
+        await connector.update_events(mirrored_user, [moved_planning])
+    else:
+        await connector.create_events(mirrored_user, [moved_planning])
 
     calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
     objects = await nextcloud_client.calendars.list_objects(
@@ -415,148 +418,6 @@ async def test_a_delete_for_a_user_without_a_ghost_is_logged(
     assert log["user_id"] == mirrored_user.id
     with pytest.raises(NotFoundError):
         _ = await nextcloud_client.accounts.get_account(mirrored_user.id)
-
-
-async def test_an_updated_event_keeps_what_the_patch_leaves_out(
-    connector: GroupwareConnector, mirrored_user: User
-) -> None:
-    window_start = datetime(2030, 1, 6, tzinfo=UTC)
-    window_end = datetime(2030, 1, 8, tzinfo=UTC)
-    nine = datetime(2030, 1, 7, 9, tzinfo=UTC)
-    ten = datetime(2030, 1, 7, 10, tzinfo=UTC)
-    planning_source = EventSource(system=MICROSOFT_CLOUD, original_id="planning")
-    lunch_source = EventSource(system=MICROSOFT_CLOUD, original_id="lunch")
-    planning = CalendarEvent(
-        source=planning_source,
-        interval=DatetimeInterval(start=nine, end=ten),
-        free_busy_status=FreeBusyStatus.TENTATIVE,
-    )
-    lunch = CalendarEvent(
-        source=lunch_source,
-        interval=DatetimeInterval(start=ten, end=ten + timedelta(hours=1)),
-        free_busy_status=FreeBusyStatus.TENTATIVE,
-    )
-    moved_interval = DatetimeInterval(start=ten, end=ten + timedelta(hours=1))
-    await connector.create_events(mirrored_user, [planning, lunch])
-
-    await connector.update_events(
-        mirrored_user,
-        [
-            EventPatch(source=planning_source, interval=moved_interval),
-            EventPatch(source=lunch_source, free_busy_status=FreeBusyStatus.BUSY),
-        ],
-    )
-
-    events = await _list_events(connector, mirrored_user, window_start, window_end)
-    assert sorted(events, key=str) == sorted(
-        [
-            planning.model_copy(update={"interval": moved_interval}),
-            lunch.model_copy(update={"free_busy_status": FreeBusyStatus.BUSY}),
-        ],
-        key=str,
-    )
-
-
-async def test_a_patch_with_only_a_subject_does_not_write_the_busy_block(
-    nextcloud_client: NextcloudClient,
-    connector: GroupwareConnector,
-    mirrored_user: User,
-) -> None:
-    nine = datetime(2030, 1, 7, 9, tzinfo=UTC)
-    ten = datetime(2030, 1, 7, 10, tzinfo=UTC)
-    written_at = datetime(2030, 1, 1, tzinfo=UTC)
-    planning_source = EventSource(system=MICROSOFT_CLOUD, original_id="planning")
-    planning = CalendarEvent(
-        source=planning_source,
-        interval=DatetimeInterval(start=nine, end=ten),
-        free_busy_status=FreeBusyStatus.BUSY,
-    )
-    name = make_busy_block_name(planning_source)
-    await connector.create_events(mirrored_user, [planning])
-    calendar_hrefs = await nextcloud_client.calendars.list_ghost_calendar_hrefs()
-    calendar_href = calendar_hrefs[mirrored_user.id]
-    await nextcloud_client.calendars.put_object(
-        calendar_href, name, render_busy_block(planning, written_at)
-    )
-
-    await connector.update_events(
-        mirrored_user, [EventPatch(source=planning_source, subject="Planning")]
-    )
-
-    busy_block = await nextcloud_client.calendars.get_object(calendar_href, name)
-    assert busy_block is not None
-    assert read_busy_block_timestamp(busy_block) == written_at
-
-
-async def test_an_update_through_a_read_only_share_is_logged_and_changes_nothing(
-    nextcloud_settings: NextcloudSettings,
-    nextcloud_client: NextcloudClient,
-    connector: GroupwareConnector,
-    mirrored_user: User,
-    ghost_password: SecretStr,
-) -> None:
-    window_start = datetime(2030, 1, 6, tzinfo=UTC)
-    window_end = datetime(2030, 1, 8, tzinfo=UTC)
-    nine = datetime(2030, 1, 7, 9, tzinfo=UTC)
-    ten = datetime(2030, 1, 7, 10, tzinfo=UTC)
-    planning_source = EventSource(system=MICROSOFT_CLOUD, original_id="planning")
-    planning = CalendarEvent(
-        source=planning_source,
-        interval=DatetimeInterval(start=nine, end=ten),
-        free_busy_status=FreeBusyStatus.BUSY,
-    )
-    await connector.create_events(mirrored_user, [planning])
-    await nextcloud_client.accounts.set_password(mirrored_user.id, ghost_password)
-    await nextcloud_client.accounts.set_enabled(mirrored_user.id, enabled=True)
-    await _share_read_only_as_ghost(
-        nextcloud_settings, mirrored_user.id, ghost_password
-    )
-
-    with capture_logs() as logs:
-        await connector.update_events(
-            mirrored_user,
-            [EventPatch(source=planning_source, free_busy_status=FreeBusyStatus.FREE)],
-        )
-
-    log = one(log for log in logs if log["event"] == "cannot update in ghost calendar")
-    assert log["user_id"] == mirrored_user.id
-    events = await _list_events(connector, mirrored_user, window_start, window_end)
-    assert events == [planning]
-
-
-async def test_an_update_of_an_event_that_is_not_there_is_logged_and_skipped(
-    connector: GroupwareConnector, mirrored_user: User
-) -> None:
-    window_start = datetime(2030, 1, 6, tzinfo=UTC)
-    window_end = datetime(2030, 1, 8, tzinfo=UTC)
-    nine = datetime(2030, 1, 7, 9, tzinfo=UTC)
-    ten = datetime(2030, 1, 7, 10, tzinfo=UTC)
-    planning = CalendarEvent(
-        source=EventSource(system=MICROSOFT_CLOUD, original_id="planning"),
-        interval=DatetimeInterval(start=nine, end=ten),
-        free_busy_status=FreeBusyStatus.BUSY,
-    )
-    never_written_source = EventSource(system=MICROSOFT_CLOUD, original_id="never")
-    await connector.create_events(mirrored_user, [planning])
-
-    with capture_logs() as logs:
-        await connector.update_events(
-            mirrored_user,
-            [
-                EventPatch(
-                    source=never_written_source, free_busy_status=FreeBusyStatus.FREE
-                )
-            ],
-        )
-
-    assert {
-        "event": "no readable busy block to update",
-        "user_id": mirrored_user.id,
-        "name": make_busy_block_name(never_written_source),
-        "log_level": "warning",
-    } in logs
-    events = await _list_events(connector, mirrored_user, window_start, window_end)
-    assert events == [planning]
 
 
 async def test_full_syncs_through_core_make_the_ghost_calendar_follow_the_source(

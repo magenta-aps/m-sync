@@ -7,11 +7,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import structlog
-from pydantic import MISSING
 
 from .model import (
     CalendarEvent,
-    EventPatch,
     EventSource,
     GroupwareSystemName,
     User,
@@ -130,7 +128,7 @@ class Core:
 class _EventDiff:
     created: list[CalendarEvent]
     deleted: list[EventSource]
-    updated: list[EventPatch]
+    updated: list[CalendarEvent]
 
 
 def _compute_diff(
@@ -141,7 +139,7 @@ def _compute_diff(
 
     created: list[CalendarEvent] = []
     deleted: list[EventSource] = []
-    updated: list[EventPatch] = []
+    updated: list[CalendarEvent] = []
 
     # only manage events on the mirror that are owned by the source system.
     # Events owned by the mirror itself, or by other systems, should be unaffected
@@ -152,50 +150,23 @@ def _compute_diff(
     }
 
     for source_event in source:
-        assert source_event.source is not None
-
         try:
             # by removing each event source and mirror have in common, we
             # retain only the events that are in mirror, but not in source
-            mirror_event = mirror_events.pop(source_event.source)
+            mirror_event = mirror_events.pop(source_event.get_source())
         except KeyError:
             # mirror doesn't have the event, so we need to create it
             created.append(source_event)
             continue
 
-        # source and mirror both have the event, so we diff the event contents
-        # and build a patch containing only the fields that differ
-        interval = (
-            MISSING
-            if mirror_event.interval == source_event.interval
-            else source_event.interval
-        )
-        free_busy_status = (
-            MISSING
-            if mirror_event.free_busy_status == source_event.free_busy_status
-            else source_event.free_busy_status
-        )
-        subject = (
-            MISSING
-            if mirror_event.subject == source_event.subject
-            else source_event.subject
-        )
-        patch = EventPatch(
-            source=source_event.source,
-            interval=interval,
-            free_busy_status=free_busy_status,
-            subject=subject,
-        )
-
-        # avoid an expensive call on an empty diff
-        if patch.is_noop():
+        if source_event.contents_eq(mirror_event):
             continue
-        updated.append(patch)
+        patched_event = source_event.model_copy(update={"source": mirror_event.source})
+        updated.append(patched_event)
 
     # whatever remains in mirror_events is stuff that is not in source so
     # it has to be deleted
     for mirror_event in mirror_events.values():
-        assert mirror_event.source is not None
-        deleted.append(mirror_event.source)
+        deleted.append(mirror_event.get_source())
 
     return _EventDiff(created, deleted, updated)

@@ -92,8 +92,7 @@ async def test_full_sync_create_one_event(
         ]
         assert len(busy_events) == 1
         mirrored = busy_events[0]
-        source = mirrored.source
-        assert source is not None
+        source = mirrored.get_source()
         assert source.system == MICROSOFT_CLOUD
         assert mirrored.free_busy_status == FreeBusyStatus.BUSY
 

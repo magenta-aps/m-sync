@@ -10,14 +10,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Final, Literal
 
 import structlog
-from pydantic import MISSING, SecretStr
+from pydantic import SecretStr
 from starlette.routing import Mount
 
 from ...config import NextcloudSettings
 from ...model import (
     NEXTCLOUD,
     CalendarEvent,
-    EventPatch,
     EventSource,
     GroupwareSystemName,
     User,
@@ -151,56 +150,24 @@ class NextcloudGroupware:
                 "cannot delete from ghost calendar", user_id=user.id, error=str(error)
             )
 
-    async def update_events(self, user: User, patches: list[EventPatch]) -> None:
-        """Change the busy block of each patched event in the user's ghost
-        calendar. A patch with only a subject is skipped, since a busy block
-        shows none. A patch for a busy block that is not there or cannot be
-        read is logged and skipped. A ghost calendar that cannot be written is
-        logged and the rest of the patches are skipped."""
+    async def update_events(self, user: User, updates: list[CalendarEvent]) -> None:
+        """Overwrites an event with an updated event. This is identical to `create_events`,
+        except it expects the ghost user and calendar to exist already."""
+
         calendar_href = get_ghost_calendar_href(self._service_user_id, user.id)
         try:
-            for patch in patches:
-                await self._update_busy_block(user, calendar_href, patch)
+            await self._put_busy_blocks(calendar_href, updates)
         except CalendarMissingError as error:
             logger.warning(
                 "cannot update in ghost calendar", user_id=user.id, error=str(error)
             )
-
-    async def _update_busy_block(
-        self, user: User, calendar_href: str, patch: EventPatch
-    ) -> None:
-        if patch.interval is MISSING and patch.free_busy_status is MISSING:
-            return
-        name = make_busy_block_name(patch.source)
-        # FIXME: a write to the same busy block between this read and the put
-        # is lost until the next full sync
-        busy_block = await self._client.calendars.get_object(calendar_href, name)
-        event = None if busy_block is None else read_busy_block(busy_block)
-        if event is None:
-            logger.warning(
-                "no readable busy block to update", user_id=user.id, name=name
-            )
-            return
-        interval = event.interval if patch.interval is MISSING else patch.interval
-        free_busy_status = (
-            event.free_busy_status
-            if patch.free_busy_status is MISSING
-            else patch.free_busy_status
-        )
-        patched_event = CalendarEvent(
-            source=event.source,
-            interval=interval,
-            free_busy_status=free_busy_status,
-        )
-        await self._put_busy_blocks(calendar_href, [patched_event])
 
     async def _put_busy_blocks(
         self, calendar_href: str, events: list[CalendarEvent]
     ) -> None:
         written_at = datetime.now(UTC)
         for event in events:
-            assert event.source is not None
-            name = make_busy_block_name(event.source)
+            name = make_busy_block_name(event.get_source())
             busy_block = render_busy_block(event, written_at)
             await self._client.calendars.put_object(calendar_href, name, busy_block)
 

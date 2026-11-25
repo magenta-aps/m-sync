@@ -6,13 +6,13 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.applications import Starlette
+from starlette.testclient import TestClient
 from tenacity import retry, stop_after_delay, wait_fixed
 
 from sync.config import Settings
 from sync.core import Core
-from sync.database import make_sessionmaker
+from sync.database import make_database_engine, make_sessionmaker
 from sync.directories.microsoft_cloud import MicrosoftCloudDirectory
 from sync.groupware.microsoft_cloud.connector import MicrosoftCloudGroupware
 from sync.groupware.nextcloud.client import NextcloudClient
@@ -32,27 +32,23 @@ from tests.helpers import async_test_client
 
 @pytest.fixture
 def ms_and_nc_app(
-    settings: Settings,
-    ms_graph: MsGraph,
-    nextcloud_client: NextcloudClient,
-    empty_db_engine: AsyncEngine,
+    settings: Settings, ms_graph: MsGraph, nextcloud_client: NextcloudClient
 ) -> Starlette:
     assert settings.nextcloud is not None, "missing Nextcloud settings"
     dir = MicrosoftCloudDirectory(ms_graph)
+    db = make_database_engine(settings)
     core = Core(dir)
-    ms = MicrosoftCloudGroupware(
-        ms_graph, make_sessionmaker(empty_db_engine), settings, core
-    )
+    ms = MicrosoftCloudGroupware(ms_graph, make_sessionmaker(db), settings, core)
     nc = NextcloudGroupware(nextcloud_client, settings.nextcloud)
     core.add_groupware(ms, nc)
-    return make_app(settings, empty_db_engine, core, [ms, nc])
+    return make_app(settings, db, core, [ms, nc])
 
 
-async def test_app_can_be_started(ms_and_nc_app: Starlette) -> None:
+def test_app_can_be_started(ms_and_nc_app: Starlette) -> None:
     """Builds a real production-like app, and checks its health endpoints."""
 
-    async with async_test_client(ms_and_nc_app) as client:
-        response = await client.get("/health")
+    with TestClient(ms_and_nc_app) as client:
+        response = client.get("/health")
 
     assert response.status_code == 200
 

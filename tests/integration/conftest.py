@@ -14,7 +14,6 @@ from more_itertools import one
 from sqlalchemy import Connection, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -90,28 +89,19 @@ def _admin_db(settings: Settings) -> Iterator[Connection]:
 
 
 @pytest.fixture
-async def empty_db_engine(
+async def empty_db(
     settings: Settings,
     _admin_db: Connection,
-) -> AsyncIterator[AsyncEngine]:
-    """Creates an empty dedicated database and returns an engine to it."""
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Creates an empty dedicated database for running tests in."""
 
     _ = _admin_db.execute(text('DROP DATABASE IF EXISTS "test" WITH (FORCE)'))
     _ = _admin_db.execute(text('CREATE DATABASE "test"'))
 
     url = make_url(settings.database_url).set(database="test")
     engine = create_async_engine(url)
-    yield engine
+    yield make_sessionmaker(engine)
     await engine.dispose()
-
-
-@pytest.fixture
-async def empty_db(
-    empty_db_engine: AsyncEngine,
-) -> async_sessionmaker[AsyncSession]:
-    """Creates an empty dedicated database for running tests in."""
-
-    return make_sessionmaker(empty_db_engine)
 
 
 @pytest.fixture

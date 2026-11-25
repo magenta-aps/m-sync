@@ -199,8 +199,7 @@ class NextcloudGroupware:
     ) -> None:
         written_at = datetime.now(UTC)
         for event in events:
-            assert event.source is not None
-            name = make_busy_block_name(event.source)
+            name = make_busy_block_name(event.get_source())
             busy_block = render_busy_block(event, written_at)
             await self._client.calendars.put_object(calendar_href, name, busy_block)
 

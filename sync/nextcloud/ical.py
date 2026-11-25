@@ -243,11 +243,10 @@ def make_busy_block_name(source: EventSource) -> str:
 def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     """A busy block that says when the source event is and whether it takes
     time. `stamp` is when the busy block is written."""
-    assert event.source is not None
     start, end = _make_busy_block_bounds(event.interval)
     if end < start:
         logger.warning(
-            "event ends before it starts", original_id=event.source.original_id
+            "event ends before it starts", original_id=event.get_source().original_id
         )
     # Nextcloud refuses an end equal to the start, so an event that takes no time
     # has no end. A date without an end is a whole day, so it is transparent.
@@ -257,7 +256,7 @@ def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     busy_event = Event.new(
         # The UID must equal the name. Nextcloud purges a trashed object with
         # the same UID on PUT, which is what lets the same busy block come back.
-        uid=make_busy_block_name(event.source).removesuffix(".ics"),
+        uid=make_busy_block_name(event.get_source()).removesuffix(".ics"),
         stamp=stamp.astimezone(UTC),
         start=start,
         end=end if takes_time else None,
@@ -268,8 +267,8 @@ def render_busy_block(event: CalendarEvent, stamp: datetime) -> Calendar:
     # FIXME: icalendar cannot write a property value that has a line break in
     # it. An original_id like "abc\ndef" makes to_ical raise, so that busy
     # block is not written.
-    busy_event.add(_SOURCE_SYSTEM_PROPERTY, event.source.system)  # pyright: ignore[reportUnknownMemberType]
-    busy_event.add(_SOURCE_ORIGINAL_ID_PROPERTY, event.source.original_id)  # pyright: ignore[reportUnknownMemberType]
+    busy_event.add(_SOURCE_SYSTEM_PROPERTY, event.get_source().system)  # pyright: ignore[reportUnknownMemberType]
+    busy_event.add(_SOURCE_ORIGINAL_ID_PROPERTY, event.get_source().original_id)  # pyright: ignore[reportUnknownMemberType]
     busy_event.add(_FREE_BUSY_STATUS_PROPERTY, event.free_busy_status.value)  # pyright: ignore[reportUnknownMemberType]
     # Wrap the busy event in a calendar, which is what Nextcloud stores.
     calendar = Calendar()

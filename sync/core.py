@@ -152,12 +152,10 @@ def _compute_diff(
     }
 
     for source_event in source:
-        assert source_event.source is not None
-
         try:
             # by removing each event source and mirror have in common, we
             # retain only the events that are in mirror, but not in source
-            mirror_event = mirror_events.pop(source_event.source)
+            mirror_event = mirror_events.pop(source_event.get_source())
         except KeyError:
             # mirror doesn't have the event, so we need to create it
             created.append(source_event)
@@ -181,7 +179,7 @@ def _compute_diff(
             else source_event.subject
         )
         patch = EventPatch(
-            source=source_event.source,
+            source=source_event.get_source(),
             interval=interval,
             free_busy_status=free_busy_status,
             subject=subject,
@@ -195,7 +193,6 @@ def _compute_diff(
     # whatever remains in mirror_events is stuff that is not in source so
     # it has to be deleted
     for mirror_event in mirror_events.values():
-        assert mirror_event.source is not None
-        deleted.append(mirror_event.source)
+        deleted.append(mirror_event.get_source())
 
     return _EventDiff(created, deleted, updated)

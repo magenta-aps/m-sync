@@ -130,6 +130,13 @@ class CalendarEvent(BaseModel):
     subject: str | None = None
     free_busy_status: FreeBusyStatus
 
+    def get_source(self) -> EventSource:
+        """Returns the event's `.source` field, raising `AttributeError` if it is `None`."""
+
+        if self.source is None:
+            raise AttributeError("event source is not set")
+        return self.source
+
 
 class EventPatch(BaseModel):
     """An update to an event, represents only the fields that should be updated.

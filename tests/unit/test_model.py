@@ -8,7 +8,14 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic import ValidationError
 
-from sync.model import DatetimeInterval, FullDayInterval
+from sync.model import (
+    MICROSOFT_CLOUD,
+    CalendarEvent,
+    DatetimeInterval,
+    EventSource,
+    FreeBusyStatus,
+    FullDayInterval,
+)
 
 _CPH = ZoneInfo("Europe/Copenhagen")
 
@@ -63,3 +70,24 @@ def test_full_day_interval_timezones():
         microsecond=0,
         tzinfo=UTC,
     )
+
+
+def test_event_get_source():
+    event = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="abc123"),
+        interval=FullDayInterval(start=date(2020, 1, 1), end=date(2020, 1, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    source = event.get_source()
+    assert source.system == MICROSOFT_CLOUD
+    assert source.original_id == "abc123"
+
+
+def test_event_get_source_fails_on_none():
+    event = CalendarEvent(
+        source=None,
+        interval=FullDayInterval(start=date(2020, 1, 1), end=date(2020, 1, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    with pytest.raises(AttributeError):
+        _ = event.get_source()

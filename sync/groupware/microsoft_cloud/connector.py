@@ -3,7 +3,7 @@
 
 
 import asyncio
-from asyncio import Event, Semaphore, TaskGroup
+from asyncio import CancelledError, Event, Semaphore, TaskGroup
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Final
@@ -99,6 +99,11 @@ class MicrosoftCloudGroupware:
                 await self._full_sync(lock)
             else:
                 await self._delta_sync(lock)
+        except (Exception, CancelledError):
+            async with self._database() as session:
+                await abort_user_job(session, lock)
+                await session.commit()
+            raise
         finally:
             semaphore.release()
 

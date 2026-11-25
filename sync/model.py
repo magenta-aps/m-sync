@@ -137,6 +137,13 @@ class CalendarEvent(BaseModel):
             raise AttributeError("event source is not set")
         return self.source
 
+    def contents_eq(self, other: Self) -> bool:
+        """Compare contents only, ingoring the source."""
+
+        return self.model_copy(update={"source": None}) == other.model_copy(
+            update={"source": None}
+        )
+
 
 class EventPatch(BaseModel):
     """An update to an event, represents only the fields that should be updated.

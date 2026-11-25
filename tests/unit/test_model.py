@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from sync.model import (
     MICROSOFT_CLOUD,
+    NEXTCLOUD,
     CalendarEvent,
     DatetimeInterval,
     EventSource,
@@ -91,3 +92,50 @@ def test_event_get_source_fails_on_none():
     )
     with pytest.raises(AttributeError):
         _ = event.get_source()
+
+
+def test_event_contents_eq_same_contents():
+    event_1 = CalendarEvent(
+        source=EventSource(system=MICROSOFT_CLOUD, original_id="abc123"),
+        interval=FullDayInterval(start=date(2020, 1, 1), end=date(2020, 1, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+
+    # identical copy, except for the source
+    event_2 = event_1.model_copy(
+        update={"source": EventSource(system=NEXTCLOUD, original_id="123abc")}
+    )
+
+    assert event_1.contents_eq(event_2)
+
+
+def test_event_contents_eq_different_interval():
+    source = EventSource(system=MICROSOFT_CLOUD, original_id="abc123")
+    event_1 = CalendarEvent(
+        source=source,
+        interval=FullDayInterval(start=date(2020, 1, 1), end=date(2020, 1, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    event_2 = CalendarEvent(
+        source=source,
+        interval=FullDayInterval(start=date(1999, 1, 1), end=date(1999, 1, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+
+    assert not event_1.contents_eq(event_2)
+
+
+def test_event_contents_eq_different_status():
+    source = EventSource(system=MICROSOFT_CLOUD, original_id="abc123")
+    event_1 = CalendarEvent(
+        source=source,
+        interval=FullDayInterval(start=date(2020, 1, 1), end=date(2020, 1, 2)),
+        free_busy_status=FreeBusyStatus.BUSY,
+    )
+    event_2 = CalendarEvent(
+        source=source,
+        interval=FullDayInterval(start=date(2020, 1, 1), end=date(2020, 1, 2)),
+        free_busy_status=FreeBusyStatus.FREE,
+    )
+
+    assert not event_1.contents_eq(event_2)

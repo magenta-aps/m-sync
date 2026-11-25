@@ -36,6 +36,7 @@ python-dotenv = "^1.2.3"
 more-itertools = "^11.1.0"
 httpx2 = "^2.0"
 tenacity = "^9.2.1"
+asgi-lifespan = "^2.1.0"
 
 [tool.poetry.group.pre-commit.dependencies]
 pre-commit = "^4.6"

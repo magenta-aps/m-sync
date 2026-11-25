@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import override
 
 import structlog
+from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 from starlette.applications import Starlette
 from starlette.routing import Mount
@@ -178,6 +179,9 @@ async def async_test_client(app: Starlette) -> AsyncGenerator[AsyncClient]:
     see: https://starlette.dev/testclient/#asynchronous-tests
     """
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        yield client
+    async with LifespanManager(app) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            yield client

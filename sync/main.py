@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator, Iterator, Sequence
 from contextlib import asynccontextmanager
 
 import structlog
-import uvicorn
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
@@ -27,9 +26,8 @@ from .protocols import DirectoryServiceConnector, GroupwareConnector
 logger = structlog.stdlib.get_logger()
 
 
-def main() -> None:
-    """Entry point, constructs and starts the Starlette application based on
-    configuration."""
+def main() -> Starlette:
+    """Construct the Starlette application based on configuration."""
 
     settings = get_settings()
     database_engine = make_database_engine(settings)
@@ -37,8 +35,7 @@ def main() -> None:
     groupware = list(_make_groupware_connectors(settings, database_engine, core))
     core.add_groupware(*groupware)
 
-    app = make_app(settings, database_engine, core, groupware)
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    return make_app(settings, database_engine, core, groupware)
 
 
 def make_app(

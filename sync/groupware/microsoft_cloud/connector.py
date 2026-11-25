@@ -3,7 +3,7 @@
 
 
 import asyncio
-from asyncio import Event, TaskGroup
+from asyncio import CancelledError, Event, Semaphore, TaskGroup
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Final
@@ -34,10 +34,12 @@ from .database import (
 
 logger = structlog.stdlib.get_logger()
 
-_MAX_CONCURRENCY: Final = 5
+# the maximum number of asynchronous sync jobs that can be ongoing at once
+_MAX_ACTIVE_JOBS: Final = 100
 
-# how long to wait when there are no jobs to run, before checking again
-_QUEUE_EMPTY_POLL_PERIOD: Final = timedelta(seconds=2)
+# the maximum amount of time we can wait inside the scheduling loop, before
+# continuing to the next iteration
+_SCHEDULER_POLL_PERIOD: Final = timedelta(seconds=2)
 
 # how long to wait between succesful delta syncs
 _DELTA_SYNC_PERIOD: Final = timedelta(seconds=5)
@@ -67,10 +69,43 @@ class MicrosoftCloudGroupware:
             await create_schema_if_not_exists(session)
 
     async def run(self, stop: Event | None = None) -> None:
+        logger.info("started connector")
+        semaphore = Semaphore(_MAX_ACTIVE_JOBS)
         async with TaskGroup() as tg:
-            for id in range(_MAX_CONCURRENCY):
-                _ = tg.create_task(self._worker(id, stop))
-        logger.info("all workers stopped successfully")
+            while stop is None or not stop.is_set():
+                # checking if the semaphore is locked lets us re-check the stop
+                # signal instead of hanging indefinitely. Checking before
+                # acquiring is fine, because this async task cannot be suspended
+                # between this call to .locked() and the subsequent call to .acquire()
+                if semaphore.locked():
+                    logger.debug("max number of jobs reached")
+                    await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
+                    continue
+                _ = await semaphore.acquire()
+
+                async with self._database() as session:
+                    lock = await acquire_user_job(session, timeout=timedelta(hours=1))
+                    await session.commit()
+                if lock is None:
+                    semaphore.release()
+                    await asyncio.sleep(_SCHEDULER_POLL_PERIOD.total_seconds())
+                    continue
+                _ = tg.create_task(self._sync_job(lock, semaphore))
+        logger.info("stop signal received")
+
+    async def _sync_job(self, lock: UserLock, semaphore: Semaphore) -> None:
+        try:
+            if _full_sync_due(lock, self._settings):
+                await self._full_sync(lock)
+            else:
+                await self._delta_sync(lock)
+        except (Exception, CancelledError):
+            async with self._database() as session:
+                await abort_user_job(session, lock)
+                await session.commit()
+            raise
+        finally:
+            semaphore.release()
 
     def get_groupware_system_name(self) -> GroupwareSystemName:
         return GroupwareSystemName("microsoft_cloud")
@@ -109,30 +144,13 @@ class MicrosoftCloudGroupware:
         _ = patches
         raise NotImplementedError
 
-    async def _worker(self, worker_id: int, stop: Event | None) -> None:
-        logger.info("started worker", worker_id=worker_id)
-        while stop is None or not stop.is_set():
-            async with self._database() as session:
-                lock = await acquire_user_job(session)
-                await session.commit()
-            if lock is None:
-                await asyncio.sleep(_QUEUE_EMPTY_POLL_PERIOD.total_seconds())
-                continue
-            if _full_sync_due(lock, self._settings):
-                await self._full_sync(worker_id, lock)
-            else:
-                await self._delta_sync(worker_id, lock)
-
-        logger.info("stop signal received", worker_id=worker_id)
-
-    async def _full_sync(self, worker_id: int, lock: UserLock):
+    async def _full_sync(self, lock: UserLock):
         # FIXME: Der mangler noget error-handling her, men tænker jeg vil fixe
         #   når vi kan teste ordenligt. F.eks. hvis Graph API returner en internal
         #   server error, så vil det her bare crashe.
 
         logger.debug(
             "performing full sync",
-            worker_id=worker_id,
             user_id=lock.user.id,
             lock_id=lock.lock_id,
         )
@@ -172,10 +190,9 @@ class MicrosoftCloudGroupware:
             )
             await session.commit()
 
-    async def _delta_sync(self, worker_id: int, lock: UserLock):
+    async def _delta_sync(self, lock: UserLock):
         logger.debug(
             "performing delta sync",
-            worker_id=worker_id,
             user_id=lock.user.id,
             lock_id=lock.lock_id,
         )

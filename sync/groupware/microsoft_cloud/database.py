@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 
+import hashlib
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -145,6 +146,10 @@ users_table = Table(
 
 async def create_schema_if_not_exists(session: AsyncSession) -> None:
     """Create the schema, enum and tables if they do not already exist."""
+
+    # advisory lock prevents multiple workers racing to create the schema
+    lock_key = _make_lock_key("groupware_microsoft_cloud")
+    _ = await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
     _ = await session.execute(
         CreateSchema("groupware_microsoft_cloud", if_not_exists=True)
     )
@@ -217,7 +222,9 @@ class UserLock:
     last_delta_sync: datetime
 
 
-async def acquire_user_job(session: AsyncSession) -> UserLock | None:
+async def acquire_user_job(
+    session: AsyncSession, timeout: timedelta | None = None
+) -> UserLock | None:
     """Acquire a lock on a user that needs to be synced, returning its ID.
 
     Returns `None` if there are no pending jobs, or if one could not be selected
@@ -245,6 +252,8 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
     )
     # TODO: if we ever need it, we can apply jitter by multiplying with func.random()
 
+    lock_timeout = (timeout if timeout else timedelta(days=1)).total_seconds()
+
     res = await session.execute(
         update(users_table)
         .where(users_table.c.id == next_job_subquery)
@@ -252,7 +261,7 @@ async def acquire_user_job(session: AsyncSession) -> UserLock | None:
             updated_at=now(),
             sync_due_at=now() + backoff,
             locked_by=lock_id,
-            lock_expires_at=now() + _make_interval(secs=60),
+            lock_expires_at=now() + _make_interval(secs=lock_timeout),
             retry_count=users_table.c.retry_count + 1,
         )
         .returning(
@@ -376,3 +385,9 @@ def _make_backoff(
 def _make_interval(hours: int = 0, secs: float = 0) -> ColumnElement[timedelta]:
     # this is a workaround for this issue: https://github.com/sqlalchemy/sqlalchemy/discussions/8474
     return func.make_interval(0, 0, 0, 0, hours, 0, secs)
+
+
+def _make_lock_key(name: str) -> int:
+    """Generates a stable signed 64-bit int from a string."""
+    digest = hashlib.blake2b(name.encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)

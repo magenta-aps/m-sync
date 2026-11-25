@@ -9,7 +9,6 @@ from starlette.routing import Mount
 
 from .model import (
     CalendarEvent,
-    EventPatch,
     EventSource,
     Group,
     GroupwareSystemName,
@@ -44,7 +43,7 @@ class GroupwareConnector(Protocol):
 
     async def delete_events(self, user: User, events: list[EventSource]) -> None: ...
 
-    async def update_events(self, user: User, patches: list[EventPatch]) -> None: ...
+    async def update_events(self, user: User, updates: list[CalendarEvent]) -> None: ...
 
 
 class DirectoryServiceConnector(Protocol):

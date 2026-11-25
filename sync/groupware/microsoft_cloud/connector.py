@@ -17,7 +17,6 @@ from sync.core import Core
 from ...config import MicrosoftCloudSettings, Settings
 from ...model import (
     CalendarEvent,
-    EventPatch,
     EventSource,
     GroupwareSystemName,
     User,
@@ -139,9 +138,9 @@ class MicrosoftCloudGroupware:
         _ = events
         raise NotImplementedError
 
-    async def update_events(self, user: User, patches: list[EventPatch]) -> None:
+    async def update_events(self, user: User, updates: list[CalendarEvent]) -> None:
         _ = user
-        _ = patches
+        _ = updates
         raise NotImplementedError
 
     async def _full_sync(self, lock: UserLock):

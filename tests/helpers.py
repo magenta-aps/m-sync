@@ -14,7 +14,6 @@ from starlette.routing import Mount
 
 from sync.model import (
     CalendarEvent,
-    EventPatch,
     EventSource,
     Group,
     GroupwareSystemName,
@@ -56,7 +55,7 @@ class DummyGroupware:
     get_events_returns: dict[User, list[CalendarEvent]] = field(default_factory=dict)
     created_events: dict[User, list[CalendarEvent]] = field(default_factory=dict)
     deleted_events: dict[User, list[EventSource]] = field(default_factory=dict)
-    updated_events: dict[User, list[EventPatch]] = field(default_factory=dict)
+    updated_events: dict[User, list[CalendarEvent]] = field(default_factory=dict)
 
     async def setup(self) -> None:
         """There is nothing to set up for the dummy."""
@@ -102,11 +101,11 @@ class DummyGroupware:
         else:
             self.deleted_events[user].extend(events)
 
-    async def update_events(self, user: User, patches: list[EventPatch]) -> None:
+    async def update_events(self, user: User, updates: list[CalendarEvent]) -> None:
         if user not in self.updated_events:
-            self.updated_events[user] = patches
+            self.updated_events[user] = updates
         else:
-            self.updated_events[user].extend(patches)
+            self.updated_events[user].extend(updates)
 
 
 class DummyMsGraph(MsGraph):

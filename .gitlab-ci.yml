@@ -59,6 +59,21 @@ workflow:
 lint:commits:
   extends: .lint:commits
 
+# On merge requests: fail if any commit message lacks a [#<case number>]
+# reference, like salt-automation's "Lint commits" job.
+lint:case-number:
+  stage: lint
+  image: docker.io/library/alpine:3.22
+  needs: []
+  interruptible: true
+  variables:
+    GIT_DEPTH: 100
+  script:
+    - apk add git
+    - git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --extended-regexp --invert-grep --exit-code --grep '\[#[0-9]+\]' || { echo "Commit(s) above are missing a [#<case number>] reference. Exiting."; exit 1; }
+  rules:
+    - <<: *if-merge-request
+
 Pre-commit:
   image: python:3.14
 

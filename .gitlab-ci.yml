@@ -10,6 +10,7 @@ include:
       - /gitlab-ci-templates/common/docker-build-meta.v2.yml
       - /gitlab-ci-templates/common/docker-release-meta.v1.yml
       - /gitlab-ci-templates/common/config-updater-meta.v1.yml
+      - /gitlab-ci-templates/common/saltbert.v1.yml
 
 stages:
   - lint
@@ -100,3 +101,20 @@ Update staging version:
   needs: [Release version]
   variables:
     ENDPOINT: digsuv/salt/msync-update-staging
+
+# On an X.Y.Z tag: after the config updater has bumped the image, call
+# Saltbert2 on the digsuv saltmaster to run the digsuv.msync-staging
+# orchestration (salt-automation: salt/orchestration/digsuv/msync-staging.sls),
+# which highstates the msync staging server.
+# Needs the SALTBERT_PASSWORD CI/CD variable, scoped to the staging environment.
+Deploy staging:
+  extends:
+    - .rules:semver-core
+    - .saltbert
+  needs: [Update staging version]
+  variables:
+    SALTBERT_ORCHESTRATION: digsuv.msync-staging
+    SALTBERT_URL: https://saltmaster.digsuv.magentahosted.dk
+  environment:
+    name: staging
+    url: https://msync-staging.magentakommune.dk

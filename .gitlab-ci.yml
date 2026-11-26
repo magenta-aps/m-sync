@@ -15,11 +15,14 @@ include:
 stages:
   - lint
   - build
+  - test
   - release
   - deploy
 
 variables:
   IMAGE_SHA: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}
+  # the Nextcloud the integration tests run against, see compose/nextcloud-test.Dockerfile
+  NEXTCLOUD_TEST_IMAGE: ${CI_REGISTRY_IMAGE}/nextcloud-test:${CI_COMMIT_SHA}
   # Docker Hub repository, created by salt-automation:
   # terraform/services/dockerhub/registries/digsuv.yaml
   RELEASE_REGISTRY_IMAGE: magentaaps/msync
@@ -83,6 +86,101 @@ Pre-commit:
 
 Build:
   extends: .build-docker
+
+# The Nextcloud of compose.test.yaml with its setup script baked in, as GitLab
+# services cannot mount files.
+Build Nextcloud test:
+  extends: .build-docker
+  variables:
+    CI_IMAGE: ${NEXTCLOUD_TEST_IMAGE}
+    DOCKERFILE: ${CI_PROJECT_DIR}/compose/nextcloud-test.Dockerfile
+  rules:
+    - <<: *if-merge-request
+    - <<: *if-default-branch-refs
+
+
+# Test
+######
+
+# Run in the image Build pushed, which has the tests and the dev dependencies
+# in /app, so there is no need for a checkout.
+.test:
+  stage: test
+  image: ${IMAGE_SHA}
+  interruptible: true
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - cd /app
+  rules:
+    - <<: *if-merge-request
+    - <<: *if-default-branch-refs
+
+Unit tests:
+  extends: .test
+  needs: [Build]
+  script:
+    - pytest tests/unit
+
+# The services of compose.yaml and compose.test.yaml. On the Kubernetes runner
+# the services share the job's network namespace, so everything is on
+# localhost, and Nextcloud's database listens on 5433 so it does not clash with
+# ours.
+# The tests against Microsoft Entra need the masked CI/CD variables
+# MSYNC__MICROSOFT_CLOUD__TENANT_ID, MSYNC__MICROSOFT_CLOUD__CLIENT_ID and
+# MSYNC__MICROSOFT_CLOUD__CLIENT_SECRET, with the test users of README.md.
+Integration tests:
+  extends: .test
+  needs: [Build, Build Nextcloud test]
+  # job variables are passed to the services as well, so the services' own
+  # variables are set on each service
+  variables:
+    MSYNC__DIRECTORY_SERVICE: microsoft_cloud
+    MSYNC__DATABASE_URL: postgresql+psycopg://msync:msync@localhost:5432/msync
+    MSYNC__NEXTCLOUD__URL: http://localhost
+    MSYNC__NEXTCLOUD__SERVICE_USER: msync
+    MSYNC__NEXTCLOUD__SERVICE_PASSWORD: msync-service-password
+    MSYNC__NEXTCLOUD__MANAGER_USER: msync-manager
+    MSYNC__NEXTCLOUD__MANAGER_PASSWORD: msync-manager-password
+    MSYNC__NEXTCLOUD__ALLOW_HTTP: "true"
+    NEXTCLOUD_ADMIN_USER: admin
+    NEXTCLOUD_ADMIN_PASSWORD: msync-admin-password
+  services:
+    - name: docker.io/library/postgres:18
+      alias: postgres
+      variables:
+        POSTGRES_USER: msync
+        POSTGRES_PASSWORD: msync
+        POSTGRES_DB: msync
+    - name: docker.io/library/postgres:18
+      alias: nextcloud-postgres
+      command: ["postgres", "-p", "5433"]
+      variables:
+        POSTGRES_USER: nextcloud
+        POSTGRES_PASSWORD: nextcloud
+        POSTGRES_DB: nextcloud
+    - name: ${NEXTCLOUD_TEST_IMAGE}
+      alias: nextcloud
+      variables:
+        POSTGRES_HOST: localhost:5433
+        POSTGRES_DB: nextcloud
+        POSTGRES_USER: nextcloud
+        POSTGRES_PASSWORD: nextcloud
+        NEXTCLOUD_ADMIN_USER: admin
+        NEXTCLOUD_ADMIN_PASSWORD: msync-admin-password
+        NEXTCLOUD_TRUSTED_DOMAINS: localhost nextcloud
+        MSYNC_SERVICE_PASSWORD: msync-service-password
+        MSYNC_MANAGER_PASSWORD: msync-manager-password
+  script:
+    # Nextcloud installs itself before it serves requests, which can take minutes
+    - |
+      for i in $(seq 120); do
+        wget -qO- http://localhost/status.php 2>/dev/null | grep -q '"installed":true' && break
+        echo "waiting for Nextcloud to finish installing ($i)"
+        sleep 5
+      done
+    - wget -qO- http://localhost/status.php | grep -q '"installed":true' || { echo "Nextcloud did not finish installing. Exiting."; exit 1; }
+    - pytest tests/integration
 
 
 # Release
